@@ -139,6 +139,7 @@ int phoenix_provision_device(char *host, char *device_id) {
   curl_easy_setopt(curl,CURLOPT_POSTFIELDS,certificate_request);
   curl_easy_setopt(curl,CURLOPT_POSTFIELDSIZE,certificate_request_len);
   curl_easy_setopt(curl,CURLOPT_VERBOSE,1L);
+  curl_easy_setopt(curl, CURLOPT_CAPATH, "/etc/ssl/certs/cacert.pem");
   
   curl_code=curl_easy_perform(curl);
   if(curl_code != CURLE_OK) {
