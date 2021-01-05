@@ -43,6 +43,10 @@ phoenix_t *phoenix_init(char *host,unsigned char *device_id){
   return phoenix_init_with_server(host,8883,1,device_id);
 }
 
+void phoenix_subscribe_topics(phoenix_t *phoenix) {
+  mosquitto_subscribe(phoenix->mosq,NULL,phoenix->command_topic,2);
+}
+
 void mosq_disconnect_callback(struct mosquitto *mosq, void *userdata, int reason) {
   phoenix_t *phoenix = (phoenix_t *)userdata;
   print_info("Mosquitto disconnected: %s\n", phoenix->status_topic);
@@ -53,6 +57,8 @@ void mosq_connect_callback(struct mosquitto *mosq, void *userdata, int reason) {
   phoenix_t *phoenix = (phoenix_t *)userdata;
   print_info("Mosquitto connected: %s\n", phoenix->status_topic);
   phoenix->connected=1;
+
+  phoenix_subscribe_topics(phoenix);
 } 
 
 void mosq_publish_callback(struct mosquitto *mosq, void *userdata, int mid) {
@@ -194,7 +200,7 @@ phoenix_t *phoenix_init_with_server(char *host, int port, int use_tls, unsigned 
     exit(1);
   }
 
-  mosquitto_subscribe(phoenix->mosq,NULL,phoenix->command_topic,2);
+  phoenix_subscribe_topics(phoenix);
 
   phoenix->device_id = (unsigned char *)calloc(sizeof(unsigned char),strlen(device_id)+1);
   sprintf(phoenix->device_id,"%s",device_id);
