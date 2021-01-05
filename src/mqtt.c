@@ -161,7 +161,7 @@ phoenix_t *phoenix_init_with_server(char *host, int port, int use_tls, unsigned 
   if(use_tls) {
     print_info("Setting up tls\n");
     ret=mosquitto_tls_set(phoenix->mosq,
-        "ca.crt",
+        "phoenix.crt",
         NULL,
         "client.crt",
         "client.key",
