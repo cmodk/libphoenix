@@ -14,6 +14,7 @@
 #include "phoenix.h"
 
 #define CLIENT_KEY_FILENAME "client.key"
+#define CLIENT_CRT_FILENAME "client.crt"
 
 
 static void key_generation_status(int a, int b, void *c) {
@@ -23,7 +24,7 @@ static void key_generation_status(int a, int b, void *c) {
 static size_t certificate_callback(void *contents, size_t size, size_t nmemb, void *userp)
 {
   unsigned char *response=(unsigned char *) contents;
-  FILE *fp = fopen("client.crt","w");
+  FILE *fp = fopen(CLIENT_CRT_FILENAME,"w");
   print_info("Response:\n %s\n",response);
   fwrite(contents,size,nmemb,fp);
   fclose(fp);
@@ -51,8 +52,8 @@ int phoenix_provision_device(char *host, char *device_id) {
   FILE *f;
   long long start = phoenix_get_timestamp();
 
-  if(file_exists(CLIENT_KEY_FILENAME)) {
-    print_info("Client key found, skipping provisioning\n");
+  if(file_exists(CLIENT_CRT_FILENAME)) {
+    print_info("Client certificate found, skipping provisioning\n");
     return 0;
   }
   
