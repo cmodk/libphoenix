@@ -243,6 +243,10 @@ int phoenix_send_sample(phoenix_t *phoenix, long long timestamp, unsigned char *
   
   sprintf(topic,"/device/%s/sample",phoenix->device_id);
 
+  if(timestamp < 0) {
+    timestamp = phoenix_get_timestamp();
+  }
+
   if(debug) {
     dump_variable("timestamp",&timestamp,sizeof(timestamp));
   }
