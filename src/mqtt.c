@@ -282,7 +282,7 @@ int phoenix_send_string(phoenix_t *phoenix, long long timestamp, unsigned char *
       "\"notification\":\"stream\","
       "\"parameters\": {"
       "\"timestamp\":\"%s\","
-      "\"stream\":\"%s\","
+      "\"code\":\"%s\","
       "\"value\":\"%s\""
       "}"
       "}",
