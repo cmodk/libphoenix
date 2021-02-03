@@ -214,7 +214,9 @@ phoenix_t *phoenix_init_with_server(char *host, int port, int use_tls, unsigned 
 
 int phoenix_send(phoenix_t *phoenix, unsigned char *topic, unsigned char *msg, int len) {
   int status=mosquitto_publish(phoenix->mosq, NULL,topic,len,msg,1,0);
-  print_info("Publish status: %d\n",status);
+  if(status != 0) {
+    print_info("Publish status: %d\n",status);
+  }
 }
 
 void dump_variable(char *desc, void *val, int len) {
