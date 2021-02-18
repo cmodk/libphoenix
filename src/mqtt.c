@@ -11,7 +11,6 @@
 #include <sys/time.h>
 
 #include <debug.h>
-void getRFC3339(long long stamp, char buf[100]);
 
 #define INSECURE_TLS 0
 
@@ -213,10 +212,18 @@ phoenix_t *phoenix_init_with_server(char *host, int port, int use_tls, unsigned 
 }
 
 int phoenix_send(phoenix_t *phoenix, unsigned char *topic, unsigned char *msg, int len) {
-  int status=mosquitto_publish(phoenix->mosq, NULL,topic,len,msg,1,0);
+  int status;
+
+  if(phoenix->use_http) {
+    return phoenix_http_send(phoenix,msg,len);
+  }
+  
+  status=mosquitto_publish(phoenix->mosq, NULL,topic,len,msg,1,0);
   if(status != 0) {
     print_info("Publish status: %d\n",status);
   }
+
+  return status;
 }
 
 void dump_variable(char *desc, void *val, int len) {
@@ -239,6 +246,10 @@ int phoenix_send_sample(phoenix_t *phoenix, long long timestamp, unsigned char *
   unsigned char msg[2048];
   int index=0;
   int i;
+
+  if(phoenix->use_http){
+    return phoenix_http_send_sample(phoenix,timestamp,stream,value);
+  }
 
   memset(msg,0,sizeof(unsigned char) * 2048);
   debug_printf("Sending: %s -> %lld -> %f\n",stream,timestamp,value);

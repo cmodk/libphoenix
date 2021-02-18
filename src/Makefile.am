@@ -8,6 +8,7 @@ nobase_include_HEADERS=phoenix.h
 
 libphoenix_la_SOURCES=\
 		mqtt.c \
+		http.c \
 		provisioning.c \
 		db.c
 libphoenix_la_LDFLAGS=-lsqlite3
