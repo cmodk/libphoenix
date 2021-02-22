@@ -31,13 +31,33 @@ void getRFC3339(long long stamp, char buf[100]);
 
 
 //Provisioning
-int phoenix_provision_device(char *host, char *device_id);
+int phoenix_provision_device(const char *host, const char *device_id);
 
 
 //Database functions
+typedef enum {
+  DBTYPE_STRING,
+  DBTYPE_INT,
+  DBTYPE_DOUBLE
+} database_type_t;
+
+typedef struct {
+  char name[256];
+  database_type_t type;
+  void *value;
+} database_column_t;
+
 int db_init(char *path);
+int db_close();
+int db_exec(char *sql);
 char *db_string_get(char *table, char *key);
 int db_string_upsert(char *table, char *key, char *value);
 
 int db_double_set(char *table, char *key, double value);
 double db_double_get(char *table, char *key);
+
+int db_row_ids(char *table, int **ids);
+int db_row_write(char *table, database_column_t *column, int num_columns);
+int db_row_read(char *table, int id, database_column_t *columns, int num_columns);
+
+
