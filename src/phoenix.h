@@ -9,6 +9,7 @@ typedef struct {
   char command_topic[256];
   
   int use_http;
+  char *http_scheme;
   char *http_server;
   char *http_token;
 } phoenix_t; 

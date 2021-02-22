@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "../src/phoenix.h"
+int debug=0;
 
 void test_modbus_table_read(void) {
   database_column_t columns[]={
