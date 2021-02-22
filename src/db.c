@@ -140,7 +140,7 @@ int db_string_upsert(char *table, char *key, char *value) {
 
 double db_double_get(char *table, char *key) {
   int id;
-  double value=nan(NULL);
+  double value=NAN;
   sqlite3_stmt* stmt;
   char *str;
   char sql[512];
@@ -149,7 +149,7 @@ double db_double_get(char *table, char *key) {
   
   if(sqlite3_prepare(db,sql,strlen(sql), &stmt, NULL)!=SQLITE_OK) {
     print_error("Error preparing statement: %s\n", sqlite3_errmsg(db));
-    return nan(NULL);
+    return NAN;
   }
 
   sqlite3_bind_text(stmt, 1, key, strlen(key),NULL);
