@@ -10,7 +10,7 @@ common_CFLAGS="\
 	-Wall -g -Werror=implicit-function-declaration"
 AC_SUBST([common_CFLAGS])
 
-common_LDFLAGS="-lm -lcurl -lz"
+common_LDFLAGS="-lm -lcurl -lz -ljson-c"
 AC_SUBST([common_LDFLAGS])
 
 
