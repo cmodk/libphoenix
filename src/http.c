@@ -129,9 +129,13 @@ phoenix_t *phoenix_init_http(unsigned char *server, const char *device_id) {
   unsigned char crt_hash[65];
   X509 *loaded = NULL;
   phoenix_t *phoenix = (phoenix_t *)calloc(sizeof(phoenix_t),1);
-  FILE *crt_file = fopen("client.crt","r");
+  FILE *crt_file;
 
+  if(phoenix_provision_device(server,device_id)){
+    print_fatal("Provisioning failed\n");
+  }
 
+  crt_file = fopen("client.crt","r");
   if(crt_file == NULL){
     print_fatal("Error opening client certificate\n");
   }
