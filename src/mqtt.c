@@ -32,13 +32,16 @@ void mosq_log_callback(struct mosquitto *mosq, void *userdata, int level, const 
       case MOSQ_LOG_ERR:
         print_error("%i:%s\n", level, str);
         break;
+      default:
+        print_error("Unhandled level:%i:%s\n",level,str);
+        break;
     }
 
   if(level == MOSQ_LOG_ERR) {
   }
 }
 
-phoenix_t *phoenix_init(char *host,unsigned char *device_id){
+phoenix_t *phoenix_init(char *host,const char *device_id){
   return phoenix_init_with_server(host,8883,1,device_id);
 }
 
@@ -61,7 +64,7 @@ void mosq_connect_callback(struct mosquitto *mosq, void *userdata, int reason) {
 } 
 
 void mosq_publish_callback(struct mosquitto *mosq, void *userdata, int mid) {
-  phoenix_t *phoenix = (phoenix_t *)userdata;
+  //phoenix_t *phoenix = (phoenix_t *)userdata;
 }
 
 void command_config_write(phoenix_t *phoenix, uint8_t *p) {
@@ -78,7 +81,7 @@ void command_config_write(phoenix_t *phoenix, uint8_t *p) {
   db_string_upsert("conf_str", conf,value);  
 }
 
-void parse_command(phoenix_t *phoenix, struct mosquitto_message *msg) {
+void parse_command(phoenix_t *phoenix, const struct mosquitto_message *msg) {
   int i;
   uint8_t *p = (uint8_t *)msg->payload;
   uint8_t cmd_id = p[0] << 8 | p[1];
@@ -111,16 +114,16 @@ void parse_command(phoenix_t *phoenix, struct mosquitto_message *msg) {
 }
 
 
-void mosq_message_callback(struct mosquitto *mosq, void *userdata, struct mosquitto_message *msg) {
+void mosq_message_callback(struct mosquitto *mosq, void *userdata, const struct mosquitto_message *msg) {
   phoenix_t *phoenix = (phoenix_t *)userdata;
   if(strcmp(phoenix->command_topic,msg->topic) == 0) {
     parse_command(phoenix,msg);
   }else{
-    print_info("Unknown message received(%d): %s\n", msg->payloadlen,msg->payload);
+    print_info("Unknown message received(%d): %s\n", msg->payloadlen,(const char *)msg->payload);
   }
 }
 
-phoenix_t *phoenix_init_with_server(char *host, int port, int use_tls, unsigned char *device_id) {
+phoenix_t *phoenix_init_with_server(char *host, int port, int use_tls, const char *device_id) {
   int ret;
   int keepalive = 60;
   bool clean_session = true;
@@ -188,7 +191,7 @@ phoenix_t *phoenix_init_with_server(char *host, int port, int use_tls, unsigned 
 
 
   print_info("Connecting to server: %s:%d\n",host,port);
-  if(ret=mosquitto_connect(phoenix->mosq, host, port, keepalive) != MOSQ_ERR_SUCCESS){
+  if( (ret=mosquitto_connect(phoenix->mosq, host, port, keepalive)) != MOSQ_ERR_SUCCESS){
     perror("Unable to connect");
     print_fatal("Unable to connect: %d\n",ret);
   }
@@ -201,7 +204,7 @@ phoenix_t *phoenix_init_with_server(char *host, int port, int use_tls, unsigned 
 
   phoenix_subscribe_topics(phoenix);
 
-  phoenix->device_id = (unsigned char *)calloc(sizeof(unsigned char),strlen(device_id)+1);
+  phoenix->device_id = (char *)calloc(sizeof(unsigned char),strlen((const char *)device_id)+1);
   sprintf(phoenix->device_id,"%s",device_id);
 
   print_info("Sending online state\n");
@@ -211,7 +214,7 @@ phoenix_t *phoenix_init_with_server(char *host, int port, int use_tls, unsigned 
   return phoenix;
 }
 
-int phoenix_send(phoenix_t *phoenix, unsigned char *topic, unsigned char *msg, int len) {
+int phoenix_send(phoenix_t *phoenix, const char *topic, const char *msg, int len) {
   int status;
 
   if(phoenix->use_http) {
@@ -243,7 +246,7 @@ void dump_variable(char *desc, void *val, int len) {
 
 int phoenix_send_sample(phoenix_t *phoenix, long long timestamp, unsigned char *stream, double value) {
   char topic[1024];
-  unsigned char msg[2048];
+  char msg[2048];
   int index=0;
   int i;
 
@@ -328,11 +331,10 @@ void getRFC3339(long long stamp, char buf[100])
 	nowtime=stamp/1000;
 	gmtime_r(&nowtime,&nowtm);
 
-	char timestr[100];
 	strftime(buf,100,"%Y-%m-%dT%H:%M:%S.000000Z",&nowtm);
 
 	char miliStr[100];
-	sprintf(miliStr,"%06d",(stamp%1000)*1000);
+	sprintf(miliStr,"%06lld",(stamp%1000)*1000);
 	memcpy(&(buf[20]),miliStr,6);
 	//printf("Timestamp RFC: %s\n",buf);
 }

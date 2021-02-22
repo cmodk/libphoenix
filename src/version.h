@@ -1,1 +1,1 @@
-#define VERSION "dev"
+#define PHOENIX_VERSION "dev"

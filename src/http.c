@@ -22,7 +22,7 @@ void sha256_string(char *string, int len, char outputBuffer[65])
   outputBuffer[64] = 0;
 }
 
-phoenix_t *phoenix_init_http(unsigned char *server, unsigned char *device_id) {
+phoenix_t *phoenix_init_http(unsigned char *server, const char *device_id) {
   int der_len,i;
   unsigned char *der_crt=NULL;
   unsigned char crt_hash[65];
@@ -104,7 +104,7 @@ int phoenix_http_post(phoenix_t *phoenix, const char *msg) {
   return response_code!=200;
 }
 
-int phoenix_http_send(phoenix_t *phoenix, unsigned char *msg, int len){
+int phoenix_http_send(phoenix_t *phoenix, const char *msg, int len){
   return phoenix_http_post(phoenix,msg);
 }
 

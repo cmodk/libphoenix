@@ -37,7 +37,7 @@ int file_exists (char *filename) {
   return (stat (filename, &buffer) == 0);
 }
 
-int phoenix_provision_device(char *host, char *device_id) {
+int phoenix_provision_device(const char *host, const char *device_id) {
   int ret;
   char provisioning_url[1024];
   unsigned char *certificate_request;

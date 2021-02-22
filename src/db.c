@@ -8,15 +8,6 @@
 static sqlite3 *db;
 static char workpath[PATH_MAX-1];
 
-static int callback(void *NotUsed, int argc, char **argv, char **azColName){
-  int i;
-  for(i=0; i<argc; i++){
-    printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
-  }
-  printf("\n");
-  return 0;
-}
-
 int db_init(char *path) {
   int ret; 
   char *zErrMsg = NULL;
@@ -149,7 +140,7 @@ int db_string_upsert(char *table, char *key, char *value) {
 
 double db_double_get(char *table, char *key) {
   int id;
-  double value;
+  double value=nan(NULL);
   sqlite3_stmt* stmt;
   char *str;
   char sql[512];
