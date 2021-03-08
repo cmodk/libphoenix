@@ -273,6 +273,10 @@ int db_row_read(char *table, int id, database_column_t *columns, int num_columns
     num_rows++;
     printf("Step\n");
     for(i=0;i<num_columns;i++) {
+      if(sqlite3_column_type(stmt,i)==SQLITE_NULL) {
+        columns[i].value=NULL;
+        continue;
+      }
       switch(columns[i].type){
         case DBTYPE_INT:
           columns[i].value = malloc(sizeof(int));
@@ -283,6 +287,10 @@ int db_row_read(char *table, int id, database_column_t *columns, int num_columns
           printf("Text: %s\n", text);
           columns[i].value=malloc(sizeof(char)*(strlen(text)+1));
           sprintf(columns[i].value,"%s",text);
+          break;
+        case DBTYPE_DOUBLE: 
+          columns[i].value=malloc(sizeof(double));
+          *(double *)columns[i].value = sqlite3_column_double(stmt,i);
           break;
         default:
           print_fatal("Unhandled database type: %d\n", columns[i].type);
@@ -325,7 +333,11 @@ int db_row_write(char *table, database_column_t *columns, int num_columns){
   }
 
   for(i=0;i<num_columns;i++) {
-    printf("Binding column: %d\n",i);
+    if (columns[i].value == NULL) {
+      sqlite3_bind_null(stmt,i+1);
+      continue;
+    }
+      
     switch(columns[i].type){
       case DBTYPE_INT:
         if( (ret=sqlite3_bind_int(stmt,i+1,*(int *)columns[i].value)) != SQLITE_OK) {
@@ -335,6 +347,11 @@ int db_row_write(char *table, database_column_t *columns, int num_columns){
       case DBTYPE_STRING:
         if ( (ret=sqlite3_bind_text(stmt,i+1,columns[i].value,strlen(columns[i].value),NULL)) != SQLITE_OK) {
           print_error("Error binding integer: %s\n", sqlite3_errmsg(db));
+        }
+        break;
+      case DBTYPE_DOUBLE: 
+        if ( (ret=sqlite3_bind_double(stmt, i+1, *(double *)columns[i].value)) != SQLITE_OK) {
+          print_error("Error binding double: %s\n", sqlite3_errmsg(db));
         }
         break;
       default:
