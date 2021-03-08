@@ -8,7 +8,9 @@ void test_modbus_table_read(void) {
     {"slave_addr",  DBTYPE_INT,   NULL},
     {"data_addr",   DBTYPE_INT,   NULL},
     {"data_len",    DBTYPE_INT,   NULL},
-    {"data_type",   DBTYPE_STRING,NULL}
+    {"data_type",   DBTYPE_STRING,NULL},
+    {"gain",        DBTYPE_DOUBLE, NULL},
+    {"offset",      DBTYPE_DOUBLE, NULL}
   };
 
   int *ids;
@@ -27,11 +29,13 @@ void test_modbus_table_read(void) {
         printf("%s -> 0x%08x\n", columns[i].name,columns[i].value);
       }
 
-      printf("Slave addr: %d, data addr: %d, data_len: %d, date_type: %s\n", 
+      printf("Slave addr: %d, data addr: %d, data_len: %d, date_type: %s, gain: %f, offset (Should be null): 0x%08x\n", 
           *(int *)columns[0].value,
           *(int *)columns[1].value,
           *(int *)columns[2].value,
-          (char *)columns[3].value);
+          (char *)columns[3].value,
+          *(double *)columns[4].value,
+          (double *)columns[5].value);
     }else{
       printf("1 row was expected, %d was returned\n",num_rows);
     }
@@ -43,12 +47,14 @@ void test_modbus_table_read(void) {
   free(ids);
 }
 
-void modbus_table_write(uint8_t slave_addr, uint16_t data_addr, uint8_t data_len, char *data_type) {
+void modbus_table_write(uint8_t slave_addr, uint16_t data_addr, uint8_t data_len, char *data_type, double gain) {
   database_column_t columns[]={
     {"slave_addr",  DBTYPE_INT,   &slave_addr},
     {"data_addr",   DBTYPE_INT,   &data_addr},
     {"data_len",    DBTYPE_INT,   &data_len},
-    {"data_type",   DBTYPE_STRING,data_type}
+    {"data_type",   DBTYPE_STRING,data_type},
+    {"gain",        DBTYPE_DOUBLE, &gain},
+    {"offset",      DBTYPE_DOUBLE, NULL}
   };
   
   int num_columns = sizeof(columns)/sizeof(database_column_t);
@@ -61,13 +67,13 @@ void test_modbus_table_write(void) {
   printf("Deleting all rows in modbus mappings\n");
   db_exec("DELETE FROM modbus_mapping");
 
-  modbus_table_write(87,4,2,"float");
-  modbus_table_write(87,8,2,"float");
-  modbus_table_write(87,12,2,"float");
-  modbus_table_write(87,16,2,"float");
-  modbus_table_write(87,20,2,"float");
-  modbus_table_write(87,24,2,"float");
-  modbus_table_write(87,28,2,"float");
+  modbus_table_write(87,4,2,"float",1.0);
+  modbus_table_write(87,8,2,"float",1.0);
+  modbus_table_write(87,12,2,"float",1.0);
+  modbus_table_write(87,16,2,"float",1.0);
+  modbus_table_write(87,20,2,"float",1.0);
+  modbus_table_write(87,24,2,"float",1.0);
+  modbus_table_write(87,28,2,"float",1.0);
 
   printf("Data inserted\n");
 }
