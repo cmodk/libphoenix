@@ -221,7 +221,7 @@ int db_row_ids(char *table, int **ids) {
   char sql[512];
   int num_ids;
 
-  print_info("Getting ids from %s\n", table);
+  debug_printf("Getting ids from %s\n", table);
   
   sprintf(sql,"SELECT id FROM %s",table);
   
@@ -260,7 +260,7 @@ int db_row_read(char *table, int id, database_column_t *columns, int num_columns
 
   sprintf(sql,"select %s from %s where id = %d;", keys,table,id);
 
-  printf("SQL: %s\n",sql);
+  debug_printf("SQL: %s\n",sql);
 
   if(sqlite3_prepare(db,sql,strlen(sql), &stmt, NULL)!=SQLITE_OK) {
     print_error("Error preparing statement: %s\n", sqlite3_errmsg(db));
@@ -325,7 +325,7 @@ int db_row_write(char *table, database_column_t *columns, int num_columns){
 
   sprintf(sql,"INSERT INTO %s(id%s) VALUES(NULL%s);", table,keys,markers);
 
-  printf("SQL(%ld): '%s'\n",strlen(sql),sql);
+  debug_printf("SQL(%ld): '%s'\n",strlen(sql),sql);
 
   if(sqlite3_prepare(db,sql,strlen(sql), &stmt, NULL)!=SQLITE_OK) {
     print_error("Error preparing statement: %s\n", sqlite3_errmsg(db));
