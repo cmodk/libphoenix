@@ -30,7 +30,6 @@ void sha256_string(char *string, int len, char outputBuffer[65])
 }
 
 void command_db_write(json_object *parameters) {
-  double *fval;
   int i,num_columns,*ival;
   json_object *table, *columns;
   database_column_t *column_data=NULL;
@@ -64,6 +63,16 @@ void command_db_write(json_object *parameters) {
         column_data[i].type=DBTYPE_STRING;
         column_data[i].value=json_object_get_string(column_value);
         printf("\tstring: %s\n", column_data[i].value);
+        break;
+      case json_type_double:
+        column_data[i].type=DBTYPE_DOUBLE;
+        column_data[i].value=malloc(sizeof(double));
+        *(double *)column_data[i].value=json_object_get_double(column_value);
+        printf("\tdouble: %f\n", *(double *)column_data[i].value);
+        break;
+      case json_type_null:
+        column_data[i].value=NULL;
+        printf("\tnull\n");
         break;
       default:
         print_fatal("Unhandled json type: %s\n", json_object_get_type(column_value));
