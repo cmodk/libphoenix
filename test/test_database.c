@@ -13,7 +13,7 @@ void test_modbus_table_read(void) {
     {"offset",      DBTYPE_DOUBLE, NULL}
   };
 
-  int *ids;
+  int *ids=NULL;
   int i,row,num_rows=0,id;
   int num_columns = sizeof(columns)/sizeof(database_column_t);
   int num_ids = db_row_ids("modbus_mapping",&ids);
@@ -44,7 +44,9 @@ void test_modbus_table_read(void) {
       free(columns[i].value);
   }
 
-  free(ids);
+  if(ids){
+    free(ids);
+  }
 }
 
 void modbus_table_write(uint8_t slave_addr, uint16_t data_addr, uint8_t data_len, char *data_type, double gain) {
@@ -106,6 +108,9 @@ int main(int argc, char *argv[]){
   //Should be NULL, when reading unknown string
   value=db_string_get("conf_str","unknown");
   print_info("Value unknown: 0x%08x\n", value);
+  
+
+  db_samples_read(10);
 
   db_close();
 

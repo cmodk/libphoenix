@@ -5,7 +5,6 @@
 #include "openssl/sha.h"
 #include <openssl/err.h>
 
-#include <json-c/json.h>
 
 #include <phoenix.h>
 
@@ -81,7 +80,7 @@ void command_db_write(json_object *parameters) {
   }
   num_columns=i;
 
-  db_row_write("modbus_mapping",column_data,num_columns);
+  db_row_write(json_object_get_string(table),column_data,num_columns);
 
   for(i=0;i<num_columns;i++) {
     if(column_data[i].type != DBTYPE_STRING)
@@ -89,6 +88,14 @@ void command_db_write(json_object *parameters) {
   }
   free(column_data);
 }
+
+void command_db_read(json_object *parameters) {
+  int *ids;
+  int num_ids = db_row_ids("modbus_mapping",&ids);
+
+}
+
+
 
 void check_pending_commands(http_response_t *body) {
   int i;
@@ -122,6 +129,8 @@ void check_pending_commands(http_response_t *body) {
 
         if(strcmp(cmd,"db_write")==0) {
           command_db_write(parameters);
+        } else if(strcmp(cmd,"db_read")) {
+          command_db_read(parameters);
         }else{
           print_error("Unknown command: %s\n", cmd);
         }
@@ -162,20 +171,25 @@ phoenix_t *phoenix_init_http(unsigned char *server, const char *device_id) {
 
   sha256_string(der_crt,der_len,crt_hash);
 
-  phoenix->use_http=1;
+  phoenix->http=calloc(sizeof(phoenix_http_t),1);
   
-  phoenix->device_id = (unsigned char *)calloc(sizeof(unsigned char),strlen(device_id)+1);
+  phoenix->device_id = (char *)calloc(sizeof(char),strlen(device_id)+1);
   sprintf(phoenix->device_id,"%s",device_id);
 
 
-  phoenix->http_scheme = (unsigned char *)calloc(sizeof(unsigned char),strlen("https")+1);
-  sprintf(phoenix->http_scheme,"https");
+  phoenix->http->scheme = (char *)calloc(sizeof(char),strlen("https")+1);
+  sprintf(phoenix->http->scheme,"https");
 
-  phoenix->http_server = (unsigned char *)calloc(sizeof(unsigned char),strlen(server)+1);
-  sprintf(phoenix->http_server,"%s",server);
+  phoenix->http->server = (char *)calloc(sizeof(char),strlen(server)+1);
+  sprintf(phoenix->http->server,"%s",server);
 
-  phoenix->http_token = (unsigned char *)calloc(sizeof(unsigned char),100);
-  sprintf(phoenix->http_token,"%s",crt_hash);
+  phoenix->http->token = (char *)calloc(sizeof(char),100);
+  sprintf(phoenix->http->token,"%s",crt_hash);
+
+  phoenix->http->queue = (struct json_object **)calloc(sizeof(struct json_object *), HTTP_QUEUE_MAX);
+
+  phoenix->http->mutex = calloc(sizeof(pthread_mutex_t),1);
+  pthread_mutex_init(phoenix->http->mutex,NULL);
 
   return phoenix;
 }
@@ -211,11 +225,11 @@ int phoenix_http_post(phoenix_t *phoenix, const char *msg) {
   curl=curl_easy_init();
 
 
-  sprintf(auth_header,"Authorization: Bearer %s", phoenix->http_token);
+  sprintf(auth_header,"Authorization: Bearer %s", phoenix->http->token);
   list = curl_slist_append(list, auth_header);
 
 
-  sprintf(url,"%s://%s/device/%s/notification",phoenix->http_scheme,phoenix->http_server,phoenix->device_id);
+  sprintf(url,"%s://%s/device/%s/notification",phoenix->http->scheme,phoenix->http->server,phoenix->device_id);
 
   debug_printf("Posting: %s -> %s\n", url,msg);
 
@@ -233,7 +247,7 @@ int phoenix_http_post(phoenix_t *phoenix, const char *msg) {
     print_error("Curl error: %s\n", curl_easy_strerror(curl_code));
   }else{
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
-    debug_printf("http status: %d\n", response_code);
+    debug_printf("http status: %ld\n", response_code);
   }
 
   curl_easy_cleanup(curl);
@@ -255,27 +269,92 @@ int phoenix_http_send(phoenix_t *phoenix, const char *msg, int len){
   return phoenix_http_post(phoenix,msg);
 }
 
+struct json_object *phoenix_notification_init(char *notification) {
+  struct json_object *n=json_object_new_object();
+  struct json_object *p=json_object_new_array();
+
+  json_object_object_add(n, "notification", json_object_new_string(notification));
+  json_object_object_add(n,"parameters", p);
+
+  return n;
+}
+
+struct json_object *copy_json_object(struct json_object *src) {
+  const char *json_str=json_object_to_json_string(src);
+
+  if(json_str == NULL){
+    return NULL;
+  }
+
+  return json_tokener_parse(json_str);
+}
+
 int phoenix_http_send_sample(phoenix_t *phoenix, long long timestamp, unsigned char *stream, double value){
   char ts[100];
-  char msg[1024];
+  int msg_len,i;
+  int status=0;
+  char *json_str;
+  struct json_object *notification, *parameters, *old_samples;  
+  struct json_object *sample = json_object_new_object();
   
+  //Get compatible timestamp in string format
   getRFC3339(timestamp,ts);
 
-  //Handcrafted json is nice...
-  snprintf(msg,sizeof(msg), "{"
-      "\"notification\":\"stream\","
-      "\"parameters\": {"
-      "\"timestamp\":\"%s\","
-      "\"code\":\"%s\","
-      "\"value\":%f"
-      "}"
-      "}",
-      ts,stream,value);
+  json_object_object_add(sample, "code", json_object_new_string(stream));
+  json_object_object_add(sample, "timestamp", json_object_new_string(ts));
+  json_object_object_add(sample, "value", json_object_new_double(value));
 
-    debug_printf("Notification -> %s -> %s\n",phoenix->http_server,msg);
+  pthread_mutex_lock(phoenix->http->mutex);
+
+  //Check if queue is full
+  if(phoenix->http->queue_length >= HTTP_QUEUE_MAX) {
+    debug_printf("Queue full, saving in database\n");
+    db_sample_insert(sample);
+  }else{
+    phoenix->http->queue[phoenix->http->queue_length++]=json_object_get(sample);
+  }
+  json_object_put(sample);
+
+  if(phoenix->http->queue_length > (HTTP_QUEUE_MAX / 2)) {
+    notification = phoenix_notification_init("streams");
+    if(!json_object_object_get_ex(notification,"parameters", &parameters)) {
+      print_error("Missing parameters for notification\n");
+    }
+
+    debug_printf("q: 0x%08x\n", phoenix->http->queue);
+    debug_printf("o: 0x%08x\n", parameters);
+    for(i=0;i<phoenix->http->queue_length;i++) {
+      debug_printf("queue[%03d] = 0x%08x\n", i, phoenix->http->queue[i]);
+      json_object_array_add(parameters,json_object_get(phoenix->http->queue[i]));
+    }
+
+    json_str = json_object_to_json_string_ext(notification,JSON_C_TO_STRING_PLAIN);
+
+    if(!phoenix_http_send(phoenix,json_str,strlen(json_str))){
+      //Delivery successfull. Clear the queue
+      for(i=0;i<phoenix->http->queue_length;i++) {
+        //Entries from database, has an id, which need to be marked as sent
+        db_sample_sent(phoenix->http->queue[i],1);
+        json_object_put(phoenix->http->queue[i]);
+        phoenix->http->queue[i]=NULL;
+      }
+      phoenix->http->queue_length=0;
 
 
-  return phoenix_http_send(phoenix,msg,strlen(msg));
+      //Check for old samples
+      old_samples=db_samples_read(HTTP_QUEUE_MAX/2);
+      for(i=0;i<json_object_array_length(old_samples);i++){
+        phoenix->http->queue[phoenix->http->queue_length++]=copy_json_object(json_object_array_get_idx(old_samples,i));
+      }
+      json_object_put(old_samples);
+    }
+    json_object_put(notification);
+
+  }
+  pthread_mutex_unlock(phoenix->http->mutex);
+
+
+  return status;
 }
 
 

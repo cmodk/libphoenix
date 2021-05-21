@@ -1,15 +1,27 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 #include <linux/limits.h>
 #include <math.h>
 #include <phoenix.h>
 
+#define SAMPLES_INSERT_STMT "INSERT INTO samples VALUES(NULL,?,?,?,0);"
+#define SAMPLES_READ_STMT "SELECT id,code,timestamp,value FROM samples WHERE is_sent=? LIMIT ?;"
+#define SAMPLES_IS_SENT_STMT "UPDATE samples SET is_sent=1 WHERE id = ?;"
+#define SAMPLES_DELETE_STMT "DELETE FROM samples WHERE id = ?;"
+
 
 static sqlite3 *db;
 static char workpath[PATH_MAX-1];
+static pthread_mutex_t db_mutex;
+static sqlite3_stmt *db_sample_insert_stmt;
+static sqlite3_stmt *db_samples_read_stmt;
+static sqlite3_stmt *db_sample_is_sent_stmt;
+static sqlite3_stmt *db_sample_delete_stmt;
 
 int db_init(char *path) {
   int ret; 
+  char** pStatement=NULL;
   char *zErrMsg = NULL;
   char dbpath[PATH_MAX-1];
 
@@ -35,7 +47,33 @@ int db_init(char *path) {
     return -1;
   }
 
+  if(ret=sqlite3_exec(db,"CREATE TABLE IF NOT EXISTS samples(id INTEGER PRIMARY KEY AUTOINCREMENT, code STRING NOT NULL, timestamp STRING NOT NULL, value DOUBLE, is_sent INT DEFAULT 0);",NULL,0,zErrMsg) != SQLITE_OK)  {
+    print_error("Could not create sample table: %d -> %s -> %s \n",ret, zErrMsg, sqlite3_errmsg(db));
+    sqlite3_close(db);
+    return -1;
+  }
 
+  if(sqlite3_prepare(db,SAMPLES_INSERT_STMT,strlen(SAMPLES_INSERT_STMT), &db_sample_insert_stmt, NULL)!=SQLITE_OK) {
+    print_error("Error preparing statement: %s\n", sqlite3_errmsg(db));
+    return -1;
+  }
+
+  if(sqlite3_prepare(db,SAMPLES_READ_STMT,strlen(SAMPLES_READ_STMT), &db_samples_read_stmt, NULL)!=SQLITE_OK) {
+    print_error("Error preparing statement: %s\n", sqlite3_errmsg(db));
+    return -1;
+  }
+
+  if(sqlite3_prepare(db,SAMPLES_IS_SENT_STMT,strlen(SAMPLES_IS_SENT_STMT), &db_sample_is_sent_stmt, NULL)!=SQLITE_OK) {
+    print_error("Error preparing statement: %s\n", sqlite3_errmsg(db));
+    return -1;
+  }
+
+  if(sqlite3_prepare(db,SAMPLES_DELETE_STMT,strlen(SAMPLES_DELETE_STMT), &db_sample_delete_stmt, NULL)!=SQLITE_OK) {
+    print_error("Error preparing delete statement: %s\n", sqlite3_errmsg(db));
+    return -1;
+  }
+
+  pthread_mutex_init(&db_mutex,NULL);
 
   return 0;
 }
@@ -165,8 +203,24 @@ double db_double_get(char *table, char *key) {
   return value;
 }
 
+int db_bind_value(sqlite3_stmt *stmt, int index, void *value, database_type_t value_type) {
+  switch(value_type) {
+      case DBTYPE_DOUBLE:
+        sqlite3_bind_double(stmt, index, *((double *)value));
+        break;
+      case DBTYPE_INT64:
+        sqlite3_bind_int64(stmt, index, *((int64_t *)value));
+        break;
+      default:
+        print_error("Unhandled database type: %d\n", value_type);
+        return -1;
 
-int db_double_set(char *table, char *key, double value) {
+    }
+
+  return 0;
+}
+
+int db_value_set(char *table, char *key, void *value, database_type_t value_type) {
   int ret;
   char sql[512];
   sqlite3_stmt* stmt;
@@ -179,7 +233,7 @@ int db_double_set(char *table, char *key, double value) {
   }
 
   sqlite3_bind_text(stmt, 1, key, strlen(key),NULL);
-  sqlite3_bind_double(stmt, 2, value);
+  db_bind_value(stmt,2,value,value_type);
 
   while (ret=sqlite3_step(stmt) == SQLITE_ROW)
   {
@@ -198,8 +252,8 @@ int db_double_set(char *table, char *key, double value) {
       print_error("Error preparing statement: %s\n", sqlite3_errmsg(db));
       return NULL;
     }
-
-    sqlite3_bind_double(stmt, 1, value);
+    
+    db_bind_value(stmt,1,value,value_type);
     sqlite3_bind_text(stmt, 2, key, strlen(key),NULL);
 
     while (ret=sqlite3_step(stmt) == SQLITE_ROW)
@@ -214,6 +268,14 @@ int db_double_set(char *table, char *key, double value) {
   }
 
   return 0;
+}
+
+int db_double_set(char *table, char *key, double value) {
+  return db_value_set(table, key, &value, DBTYPE_DOUBLE);
+}
+
+int db_int64_set(char *table, char *key, int64_t value) {
+  return db_value_set(table, key, &value, DBTYPE_INT64);
 }
 
 int db_row_ids(char *table, int **ids) {
@@ -325,7 +387,7 @@ int db_row_write(char *table, database_column_t *columns, int num_columns){
 
   sprintf(sql,"INSERT INTO %s(id%s) VALUES(NULL%s);", table,keys,markers);
 
-  debug_printf("SQL(%ld): '%s'\n",strlen(sql),sql);
+  printf("SQL(%ld): '%s'\n",strlen(sql),sql);
 
   if(sqlite3_prepare(db,sql,strlen(sql), &stmt, NULL)!=SQLITE_OK) {
     print_error("Error preparing statement: %s\n", sqlite3_errmsg(db));
@@ -374,3 +436,159 @@ int db_row_write(char *table, database_column_t *columns, int num_columns){
 
 }
 
+int64_t db_int64_get(char *table, char *key) {
+  int id;
+  int64_t value=0;
+  sqlite3_stmt* stmt;
+  char *str;
+  char sql[512];
+  
+  sprintf(sql,"SELECT id,value FROM %s WHERE key = ?",table);
+  
+  if(sqlite3_prepare(db,sql,strlen(sql), &stmt, NULL)!=SQLITE_OK) {
+    print_error("Error preparing statement: %s\n", sqlite3_errmsg(db));
+    return 0;
+  }
+
+  sqlite3_bind_text(stmt, 1, key, strlen(key),NULL);
+
+  while (sqlite3_step(stmt) == SQLITE_ROW)
+  {
+    id = sqlite3_column_int(stmt, 0);
+    value=sqlite3_column_int64(stmt,1);
+  }
+
+
+  sqlite3_finalize(stmt);
+  return value;
+}
+
+int db_sample_insert(struct json_object *sample) {
+  int status=0;
+  int err;
+  struct json_object *code, *timestamp, *value;
+
+  if(!json_object_object_get_ex(sample,"code",&code)){
+    print_error("code missing from sample object\n");
+    return -1;
+  }
+
+  if(!json_object_object_get_ex(sample,"timestamp",&timestamp)){
+    print_error("timestamp missing from sample object\n");
+    return -1;
+  }
+
+  if(!json_object_object_get_ex(sample,"value",&value)){
+    print_error("value missing from sample object\n");
+    return -1;
+  }
+
+  pthread_mutex_lock(&db_mutex);
+  sqlite3_reset(db_sample_insert_stmt);
+
+  if(err=sqlite3_bind_text(db_sample_insert_stmt, 1, json_object_get_string(code),-1, NULL) != SQLITE_OK) {
+    print_error("Error binding code to sample stmt: %s",  sqlite3_errstr(err));
+    status=-1;
+    goto cleanup;
+  }
+
+  if(err=sqlite3_bind_text(db_sample_insert_stmt, 2, json_object_get_string(timestamp),-1, NULL) != SQLITE_OK) {
+    print_error("Error binding timestamp to sample stmt: %s",  sqlite3_errstr(err));
+    status=-1;
+    goto cleanup;
+  }
+
+  if(err=sqlite3_bind_double(db_sample_insert_stmt, 3, json_object_get_double(value)) != SQLITE_OK) {
+    print_error("Error binding value to sample stmt: %s",  sqlite3_errstr(err));
+    status=-1;
+    goto cleanup;
+  }
+
+  while ((err=sqlite3_step(db_sample_insert_stmt)) != SQLITE_DONE) {
+    print_info("Running sample insert: %s\n", sqlite3_errstr(err));
+  }
+
+cleanup:
+  pthread_mutex_unlock(&db_mutex);
+  return status;
+}
+
+int db_sample_sent(struct json_object *sample, int remove) {
+  int status=0;
+  int err;
+  struct json_object *id;
+  sqlite3_stmt *stmt=db_sample_is_sent_stmt;
+
+  if(remove) {
+    stmt=db_sample_delete_stmt;
+  }
+  
+  if(!json_object_object_get_ex(sample,"id", &id)){
+    debug_printf("No id in sample, not updating database\n");
+    return 0;
+  }
+
+  pthread_mutex_lock(&db_mutex);
+  sqlite3_reset(stmt);
+
+  if((err=sqlite3_bind_int(stmt, 1, json_object_get_int(id))) != SQLITE_OK) {
+    print_error("Error binding id: %s\n", sqlite3_errstr(err));
+    goto cleanup;
+  }
+
+  while(sqlite3_step(stmt) != SQLITE_DONE) {}; 
+
+cleanup:
+  pthread_mutex_unlock(&db_mutex);
+  return status;
+}
+
+struct json_object *db_samples_read(int limit) {
+  int err;
+  int id;
+  char *code, *timestamp;
+  double value;
+  sqlite3_stmt *stmt=db_samples_read_stmt;
+  struct json_object *sample;
+  struct json_object *samples = json_object_new_array();
+
+  pthread_mutex_lock(&db_mutex);
+  sqlite3_reset(stmt);  
+
+  
+  if(err=sqlite3_bind_int(stmt, 1,0) != SQLITE_OK) {
+    print_error("Could not bind is_sent: %s\n", sqlite3_errstr(err));
+    goto cleanup;
+  }
+
+  if(err=sqlite3_bind_int(stmt, 2,limit) != SQLITE_OK) {
+    print_error("Could not bind limit: %s\n", sqlite3_errstr(err));
+    goto cleanup;
+  }
+
+  debug_printf("Reading samples\n");
+  while( (err=sqlite3_step(stmt)) != SQLITE_DONE){
+    if(err == SQLITE_ROW) {
+      id=sqlite3_column_int(stmt,0);
+      code = (char *)sqlite3_column_text(stmt,1);
+      timestamp = (char *)sqlite3_column_text(stmt,2);
+      value = sqlite3_column_double(stmt,3);
+
+      sample=json_object_new_object();
+
+      json_object_object_add(sample,"id", json_object_new_int(id));
+      json_object_object_add(sample,"code", json_object_new_string(code));
+      json_object_object_add(sample,"timestamp", json_object_new_string(timestamp));
+      json_object_object_add(sample,"value", json_object_new_double(value));
+
+      json_object_array_add(samples,sample);
+
+    }else{
+      print_error("Read samples error: %s\n", sqlite3_errstr(err));
+    }
+  }
+  
+cleanup:
+  pthread_mutex_unlock(&db_mutex);
+  return samples;
+}

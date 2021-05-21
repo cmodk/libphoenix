@@ -10,5 +10,6 @@ libphoenix_la_SOURCES=\
 		mqtt.c \
 		http.c \
 		provisioning.c \
-		db.c
+		db.c \
+		db_commands.c
 libphoenix_la_LDFLAGS=-lsqlite3

@@ -295,7 +295,7 @@ phoenix_t *phoenix_init_with_server(char *host, int port, int use_tls, const cha
 int phoenix_send(phoenix_t *phoenix, const char *topic, const char *msg, int len) {
   int status;
 
-  if(phoenix->use_http) {
+  if(phoenix->http) {
     return phoenix_http_send(phoenix,msg,len);
   }
   
@@ -328,7 +328,7 @@ int phoenix_send_sample(phoenix_t *phoenix, long long timestamp, unsigned char *
   int index=0;
   int i;
 
-  if(phoenix->use_http){
+  if(phoenix->http){
     return phoenix_http_send_sample(phoenix,timestamp,stream,value);
   }
 

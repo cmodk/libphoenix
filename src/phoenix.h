@@ -1,6 +1,24 @@
+#include <pthread.h>
 #include <sqlite3.h>
+#include <json-c/json.h>
 
+#ifndef __PHOENIX_H__
+#define __PHOENIX_H__
 #include <debug.h>
+
+#define HTTP_QUEUE_MAX 100
+
+typedef struct {
+  char *scheme;
+  char *server;
+  char *token;
+  
+  pthread_mutex_t *mutex;
+  int queue_length;
+  struct json_object **queue; 
+} phoenix_http_t;
+
+
 typedef struct {
   int connected;
   struct mosquitto *mosq;
@@ -8,10 +26,7 @@ typedef struct {
   char status_topic[256];
   char command_topic[256];
   
-  int use_http;
-  char *http_scheme;
-  char *http_server;
-  char *http_token;
+  phoenix_http_t *http;
 } phoenix_t; 
 
 phoenix_t *phoenix_init(char *host, const char *device_id);
@@ -65,9 +80,15 @@ int db_string_upsert(char *table, char *key, char *value);
 
 int db_double_set(char *table, char *key, double value);
 double db_double_get(char *table, char *key);
+int db_int64_set(char *table, char *key, int64_t value);
+int64_t db_int64_get(char *table, char *key);
 
 int db_row_ids(char *table, int **ids);
 int db_row_write(char *table, database_column_t *column, int num_columns);
 int db_row_read(char *table, int id, database_column_t *columns, int num_columns);
 
+int db_sample_insert(struct json_object *sample);
+int db_sample_sent(struct json_object *sample, int remove);
+struct json_object *db_samples_read(int limit);
 
+#endif // __PHOENIX_H__
