@@ -487,25 +487,25 @@ int db_sample_insert(struct json_object *sample) {
   sqlite3_reset(db_sample_insert_stmt);
 
   if(err=sqlite3_bind_text(db_sample_insert_stmt, 1, json_object_get_string(code),-1, NULL) != SQLITE_OK) {
-    print_error("Error binding code to sample stmt: %s",  sqlite3_errstr(err));
+    print_error("Error binding code to sample stmt: %d", err);
     status=-1;
     goto cleanup;
   }
 
   if(err=sqlite3_bind_text(db_sample_insert_stmt, 2, json_object_get_string(timestamp),-1, NULL) != SQLITE_OK) {
-    print_error("Error binding timestamp to sample stmt: %s",  sqlite3_errstr(err));
+    print_error("Error binding timestamp to sample stmt: %d", err);
     status=-1;
     goto cleanup;
   }
 
   if(err=sqlite3_bind_double(db_sample_insert_stmt, 3, json_object_get_double(value)) != SQLITE_OK) {
-    print_error("Error binding value to sample stmt: %s",  sqlite3_errstr(err));
+    print_error("Error binding value to sample stmt: %d", err);
     status=-1;
     goto cleanup;
   }
 
   while ((err=sqlite3_step(db_sample_insert_stmt)) != SQLITE_DONE) {
-    print_info("Running sample insert: %s\n", sqlite3_errstr(err));
+    print_info("Running sample insert: %d\n", err);
   }
 
 cleanup:
@@ -532,7 +532,7 @@ int db_sample_sent(struct json_object *sample, int remove) {
   sqlite3_reset(stmt);
 
   if((err=sqlite3_bind_int(stmt, 1, json_object_get_int(id))) != SQLITE_OK) {
-    print_error("Error binding id: %s\n", sqlite3_errstr(err));
+    print_error("Error binding id: %d\n", err);
     goto cleanup;
   }
 
@@ -557,12 +557,12 @@ struct json_object *db_samples_read(int limit) {
 
   
   if(err=sqlite3_bind_int(stmt, 1,0) != SQLITE_OK) {
-    print_error("Could not bind is_sent: %s\n", sqlite3_errstr(err));
+    print_error("Could not bind is_sent: %d\n", err);
     goto cleanup;
   }
 
   if(err=sqlite3_bind_int(stmt, 2,limit) != SQLITE_OK) {
-    print_error("Could not bind limit: %s\n", sqlite3_errstr(err));
+    print_error("Could not bind limit: %d\n", err);
     goto cleanup;
   }
 
@@ -584,7 +584,7 @@ struct json_object *db_samples_read(int limit) {
       json_object_array_add(samples,sample);
 
     }else{
-      print_error("Read samples error: %s\n", sqlite3_errstr(err));
+      print_error("Read samples error: %d\n", err);
     }
   }
   
