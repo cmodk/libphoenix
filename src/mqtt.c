@@ -11,6 +11,7 @@
 #include <sys/time.h>
 
 #include <debug.h>
+#include <db_commands.h>
 
 #define INSECURE_TLS 0
 
@@ -67,50 +68,127 @@ void mosq_publish_callback(struct mosquitto *mosq, void *userdata, int mid) {
   //phoenix_t *phoenix = (phoenix_t *)userdata;
 }
 
-void command_config_write(phoenix_t *phoenix, uint8_t *p) {
+char *database_type_to_string(database_type_t type) {
+  printf("database type to string: %d\n",type);
+  switch(type) {
+    case DBTYPE_STRING:
+      return "string";
+      break;
+    case DBTYPE_INT:
+      return "int";
+      break;
+    case DBTYPE_DOUBLE:
+      return "double";
+      break;
+    default:
+      print_error("Unknown command type: %d\n", type);
+      return "Unknown";
+  }
+}
+
+void command_config_write(phoenix_t *phoenix, uint8_t *p, struct mosquitto_message **response) {
   uint8_t type = p[0];
   uint16_t conf_len= p[1] << 8 | p[2];
   uint16_t value_len = p[3] << 8 | p[4];
+  void *value_position=p + 5 + conf_len;
   char conf[conf_len+1];
   char value[value_len+1];
+  double fvalue;
 
   snprintf(conf,conf_len+1,"%s",p+5);
-  snprintf(value,value_len+1,"%s",p+5+conf_len);
 
   print_info("ConfigWrite(%d): %s(%d) -> %s(%d)\n", type,conf,conf_len,value,value_len);
-  db_string_upsert("conf_str", conf,value);  
+  switch(type) {
+    case DBTYPE_STRING:
+      snprintf(value,value_len+1,"%s",value_position);
+      db_string_upsert("conf_str", conf,value);  
+      break;
+    case DBTYPE_DOUBLE:
+      if(value_len != sizeof(double)){
+        print_error("Wrong size for double write: %d != %d\n", value_len, sizeof(double));
+        return;
+      }
+      memcpy(&fvalue, value_position, value_len);
+      db_double_set("conf_double", conf, fvalue);
+      break;
+    default:
+      print_error("Unknown type for config write: %d\n", type);
+      return;
+  }
 }
+
+void command_config_read(phoenix_t *phoenix, uint8_t *p, struct mosquitto_message **response) {
+  command_type_t cmd_type = p[0];
+  uint16_t conf_len= p[1] << 8 | p[2];
+  char conf[conf_len+1];
+
+  printf("conf len: %d\n", conf_len);
+  snprintf(conf,conf_len+1,"%s",p+3);
+
+  print_info("ConfigRead(%d->%s): %s(%d)\n", cmd_type,database_type_to_string(cmd_type), conf,conf_len);
+
+  switch(cmd_type) {
+    case DBTYPE_DOUBLE:
+      db_command_double_response(response,conf);
+      break;
+    default:
+      print_error("Unknown command type: %d\n", cmd_type);
+  }
+}
+
+
+
 
 void parse_command(phoenix_t *phoenix, const struct mosquitto_message *msg) {
   int i;
+  struct mosquitto_message *response=NULL;
   uint8_t *p = (uint8_t *)msg->payload;
-  uint8_t cmd_id = p[0] << 8 | p[1];
-  uint8_t payload_length = p[2] << 8 | p[3];
+  uint64_t id = (
+      (uint64_t)p[0] << 56 | 
+      (uint64_t)p[1] << 48 | 
+      (uint64_t)p[2] << 40 | 
+      (uint64_t)p[3] << 32 | 
+      (uint64_t)p[4] << 24 | 
+      (uint64_t)p[5] << 16 | 
+      (uint64_t)p[6] << 8 | 
+      (uint64_t)p[7] << 0);
+  command_type_t cmd = p[8] << 8 | p[9];
+  uint8_t payload_length = p[10] << 8 | p[11];
   uint8_t payload[1024];
+  unsigned char response_topic[1024];
 
   memset(payload,0,sizeof(payload));
 
-  memcpy(payload, p+4, payload_length);
+  memcpy(payload, p+12, payload_length);
 
 
-  print_info("Command received(%d): id: %d, length: %d: ", msg->payloadlen,cmd_id, payload_length);
+  print_info("Command received(%d): id: %lld, cmd: %d, length: %d: ", msg->payloadlen,id, cmd, payload_length);
   for(i=0;i<msg->payloadlen;i++) {
     printf("0x%02x ",p[i]);
   }
   printf("\n");
 
-  print_info("As String: %s\n", payload);
-
-  switch(cmd_id) {
-    case 2:
-      command_config_write(phoenix,payload);
+  switch(cmd) {
+    case COMMAND_CONFIG_READ:
+      command_config_read(phoenix,payload, &response);
       break;
-    case 3:
+    case COMMAND_CONFIG_WRITE:
+      command_config_write(phoenix,payload, &response);
+      break;
+    case COMMAND_CONFIG_REBOOT:
       system("reboot");
       break;
     default:
-      print_error("Unknown command id: %d\n", cmd_id);
+      print_error("Unknown command id: %d\n", cmd);
   }
+
+  if(response != NULL) {
+    sprintf(response_topic, "/device/%s/command/%llu", phoenix->device_id, id);
+    print_info("Sending response to %s, %d bytes\n", response_topic,response->payloadlen);
+    phoenix_send(phoenix,response_topic, response->payload, response->payloadlen);
+    free(response);
+  }
+    
 }
 
 

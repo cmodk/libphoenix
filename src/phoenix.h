@@ -39,8 +39,17 @@ int phoenix_provision_device(const char *host, const char *device_id);
 typedef enum {
   DBTYPE_STRING,
   DBTYPE_INT,
-  DBTYPE_DOUBLE
+  DBTYPE_DOUBLE,
+  DBTYPE_INT64,
 } database_type_t;
+
+typedef enum {
+  COMMAND_UNKNONW=0,
+  COMMAND_CONFIG_READ,
+  COMMAND_CONFIG_WRITE,
+  COMMAND_CONFIG_REBOOT = 10000,
+} command_type_t;
+
 
 typedef struct {
   char name[256];
