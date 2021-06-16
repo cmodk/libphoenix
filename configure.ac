@@ -4,6 +4,15 @@ LT_INIT
 AC_PROG_CC
 AC_PROG_RANLIB
 
+AC_ARG_ENABLE([cloudgate],
+[  --enable-cloudgate    Build for cloudgate],
+[case "${enableval}" in
+  yes) cloudgate=true ;;
+  no)  cloudgate=false ;;
+  *) AC_MSG_ERROR([bad value ${enableval} for --enable-cloudgate]) ;;
+esac],[cloudgate=true])
+AM_CONDITIONAL([CLOUDGATE], [test x$cloudgate = xtrue])
+
 # Checks for library functions.
 common_CFLAGS="\
 	-I../src \
