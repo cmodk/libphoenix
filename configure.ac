@@ -7,7 +7,8 @@ AC_PROG_RANLIB
 # Checks for library functions.
 common_CFLAGS="\
 	-I../src \
-	-Wall -g -Werror=implicit-function-declaration"
+	-Wall -g -Werror=implicit-function-declaration \
+        -Wl,--start-group"
 AC_SUBST([common_CFLAGS])
 
 common_LDFLAGS="-lm -lcurl -lz -ljson-c"
