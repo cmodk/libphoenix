@@ -243,6 +243,9 @@ int phoenix_http_post(phoenix_t *phoenix, const char *msg) {
   curl_easy_setopt(curl,CURLOPT_WRITEDATA,&body);
   curl_easy_setopt(curl,CURLOPT_VERBOSE,debug);
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);  
+#ifdef CLOUDGATE
+  curl_easy_setopt(curl, CURLOPT_CAINFO, "/etc/ssl/certs/cacert.pem");
+#endif 
   
   curl_code=curl_easy_perform(curl);
   if(curl_code != CURLE_OK) {

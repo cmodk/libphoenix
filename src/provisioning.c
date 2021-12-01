@@ -140,7 +140,9 @@ int phoenix_provision_device(const char *host, const char *device_id) {
   curl_easy_setopt(curl,CURLOPT_POSTFIELDS,certificate_request);
   curl_easy_setopt(curl,CURLOPT_POSTFIELDSIZE,certificate_request_len);
   curl_easy_setopt(curl,CURLOPT_VERBOSE,debug);
-//  curl_easy_setopt(curl, CURLOPT_CAINFO, "/etc/ssl/certs/cacert.pem");
+#ifdef CLOUDGATE
+  curl_easy_setopt(curl, CURLOPT_CAINFO, "/etc/ssl/certs/cacert.pem");
+#endif 
   
   curl_code=curl_easy_perform(curl);
   if(curl_code != CURLE_OK) {
