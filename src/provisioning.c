@@ -281,7 +281,7 @@ int verify_certificate(phoenix_t *phoenix) {
 
   if(ret == 0 || ret == 1){
     print_info("Verification result text: %s\n",
-        X509_verify_cert_error_string(ctx->error));
+        X509_verify_cert_error_string(X509_STORE_CTX_get_error(ctx)));
   }
 
   if(ret == 0) {
