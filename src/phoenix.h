@@ -1,18 +1,25 @@
+#ifndef __PHOENIX_H__
+#define __PHOENIX_H__
+
+#ifndef __ZEPHYR__
 #include <pthread.h>
 #include <sqlite3.h>
 #include <json-c/json.h>
 #include <openssl/pem.h>
-
-#ifndef __PHOENIX_H__
-#define __PHOENIX_H__
 #include <debug.h>
+#endif
 
 #define HTTP_QUEUE_MAX 100
 
 typedef struct {
   char *scheme;
+  char *server;
+  char *token;
   
+#ifndef __ZEPHYR__
   pthread_mutex_t *mutex;
+#endif
+
   int queue_length;
   struct json_object **queue; 
 } phoenix_http_t;
