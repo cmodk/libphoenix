@@ -1,32 +1,12 @@
 #include <string.h>
 #include <curl/curl.h>
 
-#include <openssl/pem.h>
-#include "openssl/sha.h"
-#include <openssl/err.h>
-
-
 #include <phoenix.h>
 
 typedef struct {
   size_t size;
   char *data;
 } http_response_t;
-
-void sha256_string(char *string, int len, char outputBuffer[65])
-{
-  int i = 0;
-  unsigned char hash[SHA256_DIGEST_LENGTH];
-  SHA256_CTX sha256;
-  SHA256_Init(&sha256);
-  SHA256_Update(&sha256, string,len);
-  SHA256_Final(hash, &sha256);
-  for(i = 0; i < SHA256_DIGEST_LENGTH; i++)
-  {
-    sprintf(outputBuffer + (i * 2), "%02x", hash[i]);
-  }
-  outputBuffer[64] = 0;
-}
 
 void command_db_write(json_object *parameters) {
   int i,num_columns,*ival;
@@ -139,59 +119,36 @@ void check_pending_commands(http_response_t *body) {
   }
 
   json_object_put(response);
+
 }
 
 phoenix_t *phoenix_init_http(unsigned char *server, const char *device_id) {
-  int der_len,i;
-  unsigned char *der_crt=NULL;
-  unsigned char crt_hash[65];
-  X509 *loaded = NULL;
   phoenix_t *phoenix = (phoenix_t *)calloc(sizeof(phoenix_t),1);
-  FILE *crt_file;
 
-  if(phoenix_provision_device(server,device_id)){
-    print_fatal("Provisioning failed\n");
-  }
-
-  crt_file = fopen("client.crt","r");
-  if(crt_file == NULL){
-    print_fatal("Error opening client certificate\n");
-  }
-
-  loaded = PEM_read_X509(crt_file, NULL, NULL, NULL);
-  if(loaded == NULL) {
-    print_fatal("Error reading client certificate\n");
-  }
-
-  print_info("Loading certificate\n");
-  der_len=i2d_X509(loaded,&der_crt);
-  if(der_len==0) {
-    print_fatal("Error converting certificate to der: %s\n",ERR_error_string(ERR_get_error(),NULL));
-  }
-
-  sha256_string(der_crt,der_len,crt_hash);
 
   phoenix->http=calloc(sizeof(phoenix_http_t),1);
   
   phoenix->device_id = (char *)calloc(sizeof(char),strlen(device_id)+1);
   sprintf(phoenix->device_id,"%s",device_id);
 
-
   phoenix->http->scheme = (char *)calloc(sizeof(char),strlen("https")+1);
   sprintf(phoenix->http->scheme,"https");
 
-  phoenix->http->server = (char *)calloc(sizeof(char),strlen(server)+1);
-  sprintf(phoenix->http->server,"%s",server);
-
-  phoenix->http->token = (char *)calloc(sizeof(char),100);
-  sprintf(phoenix->http->token,"%s",crt_hash);
+  phoenix->server = (char *)calloc(sizeof(char),strlen(server)+1);
+  sprintf(phoenix->server,"%s",server);
 
   phoenix->http->queue = (struct json_object **)calloc(sizeof(struct json_object *), HTTP_QUEUE_MAX);
 
   phoenix->http->mutex = calloc(sizeof(pthread_mutex_t),1);
   pthread_mutex_init(phoenix->http->mutex,NULL);
 
+  if(phoenix_provision_device(phoenix)){
+    print_fatal("Provisioning failed\n");
+  }
+
   return phoenix;
+
+
 }
 
 size_t http_post_writer(void *data, size_t size, size_t nmemb, void *userp){
@@ -225,11 +182,11 @@ int phoenix_http_post(phoenix_t *phoenix, const char *msg) {
   curl=curl_easy_init();
 
 
-  sprintf(auth_header,"Authorization: Bearer %s", phoenix->http->token);
+  sprintf(auth_header,"Authorization: Bearer %s", phoenix->certificate_hash);
   list = curl_slist_append(list, auth_header);
 
 
-  sprintf(url,"%s://%s/device/%s/notification",phoenix->http->scheme,phoenix->http->server,phoenix->device_id);
+  sprintf(url,"%s://%s/device/%s/notification",phoenix->http->scheme,phoenix->server,phoenix->device_id);
 
   debug_printf("Posting: %s -> %s\n", url,msg);
 

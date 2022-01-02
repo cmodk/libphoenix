@@ -21,11 +21,12 @@ int main(void) {
   long long runtime_ms=1000;
   long long timestamp=phoenix_get_timestamp();
   long long next_run=timestamp-(timestamp%runtime_ms);
+  time_t unix_time;
   //phoenix_t *phoenix = phoenix_init_with_server("127.0.0.1",1883, 0, "reference_device");
   //phoenix_t *phoenix = phoenix_init_with_server("192.168.100.104",8883, 1, "CG-KW4AK71004");
-  //phoenix_t *phoenix = phoenix_init_with_server("hive.ae101.net",8883, 1, "reference_device");
+  phoenix_t *phoenix = phoenix_init_with_server("hive.ae101.net",8883, 1, "reference_device");
   //phoenix_t *phoenix = phoenix_init_http("hive.ae101.net","reference_device");
-  phoenix_t *phoenix = phoenix_init_http("127.0.0.1:4010","reference_device");
+  //phoenix_t *phoenix = phoenix_init_http("127.0.0.1:4010","reference_device");
   //phoenix_t *phoenix = phoenix_init_with_server("192.168.1.56",8883, 1, "reference_device");
   //phoenix_t *phoenix = phoenix_init_with_server("192.168.1.56",1883, 0, "reference_device");
   
@@ -55,13 +56,23 @@ int main(void) {
   printf("Connected to phoenix, sending some dummy data\n");
   while(do_run) {
     timestamp=phoenix_get_timestamp();
+
     if(timestamp>=next_run) {
+      unix_time=timestamp/1000;
+
+      if(!phoenix->certificate_not_after || ASN1_UTCTIME_cmp_time_t(phoenix->certificate_not_after,unix_time) < 0) {
+        printf("Cerficate expired\n");
+        phoenix_provision_device(phoenix);
+      }
+
+
       x=next_run/1000.0;
       ref_value=cos(x/200.0) * sin(x/300);
       //print_info("Timestamp: %lld -> %lld\n",timestamp,next_run);
+
       phoenix_send_sample(phoenix,next_run,"test.inc",i*1.0f);
       phoenix_send_sample(phoenix,next_run,"test.ref_value",ref_value);
-      
+
       //sprintf(json_msg,"{\"value\":%d}", i);
       //phoenix_send(phoenix,"/test", json_msg, strlen(json_msg));
 

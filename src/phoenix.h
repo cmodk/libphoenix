@@ -1,6 +1,7 @@
 #include <pthread.h>
 #include <sqlite3.h>
 #include <json-c/json.h>
+#include <openssl/pem.h>
 
 #ifndef __PHOENIX_H__
 #define __PHOENIX_H__
@@ -10,8 +11,6 @@
 
 typedef struct {
   char *scheme;
-  char *server;
-  char *token;
   
   pthread_mutex_t *mutex;
   int queue_length;
@@ -26,6 +25,12 @@ typedef struct {
   char status_topic[256];
   char command_topic[256];
   
+  char *server;
+  
+  X509 *certificate;
+  char *certificate_hash;
+  ASN1_TIME *certificate_not_after;
+
   phoenix_http_t *http;
 } phoenix_t; 
 
@@ -47,7 +52,9 @@ void getRFC3339(long long stamp, char buf[100]);
 
 
 //Provisioning
-int phoenix_provision_device(const char *host, const char *device_id);
+int phoenix_provision_device(phoenix_t *phoenix);
+int load_certificate(phoenix_t *phoenix);
+int verify_certificate(phoenix_t *phoenix);
 
 
 //Database functions
