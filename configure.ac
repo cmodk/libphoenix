@@ -11,7 +11,7 @@ AC_ARG_ENABLE([cloudgate],
   no)  cloudgate=false ;;
   *) AC_MSG_ERROR([bad value ${enableval} for --enable-cloudgate]) ;;
 esac],[cloudgate=true])
-AM_CONDITIONAL([CLOUDGATE], [test x$cloudgate = xtrue])
+AM_CONDITIONAL([CLOUDGATE], [test x$cloudgate = xfalse])
 
 # Checks for library functions.
 common_CFLAGS="\

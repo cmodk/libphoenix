@@ -7,7 +7,6 @@
 #include "version.h"
 #include <openssl/ssl.h>
 #include <openssl/err.h>
-
 #include <sys/time.h>
 
 #include <debug.h>
@@ -208,14 +207,22 @@ phoenix_t *phoenix_init_with_server(char *host, int port, int use_tls, const cha
   const char *online_status="online";
   const char *will="offline";
   int major,minor,revision; 
-  phoenix_t *phoenix = (phoenix_t *)calloc(sizeof(phoenix_t),1);
+  phoenix_t *phoenix = (phoenix_t *)calloc(1,sizeof(phoenix_t));
 
+  print_info("Certificate addr: 0x%08x\n",phoenix->certificate);
+
+  phoenix->server = (char *)calloc(sizeof(char),strlen(host)+1);
+  sprintf(phoenix->server,"%s",host);
+
+  phoenix->device_id = (char *)calloc(sizeof(char),strlen(device_id)+1);
+  sprintf(phoenix->device_id,"%s",device_id);
 
   ERR_load_crypto_strings();
   SSL_load_error_strings();
   OpenSSL_add_all_algorithms();
 
-  if(phoenix_provision_device(host,device_id)){
+  print_info("Certificate addr: 0x%08x\n",phoenix->certificate);
+  if(phoenix_provision_device(phoenix)){
     print_fatal("Provisioning failed\n");
   }
 
