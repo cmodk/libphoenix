@@ -61,12 +61,7 @@ int main(void) {
     if(timestamp>=next_run) {
       unix_time=timestamp/1000;
 
-      if(!phoenix->certificate_not_after || ASN1_UTCTIME_cmp_time_t(phoenix->certificate_not_after,unix_time) < 0) {
-        printf("Cerficate expired\n");
-        phoenix_provision_device(phoenix);
-      }
-
-
+      
       x=next_run/1000.0;
       ref_value=cos(x/200.0) * sin(x/300);
       //print_info("Timestamp: %lld -> %lld\n",timestamp,next_run);
