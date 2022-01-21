@@ -10,18 +10,13 @@
 #endif
 
 #define HTTP_QUEUE_MAX 100
+#define MAX_SAMPLES_TO_SEND 10
 
 typedef struct {
   char *scheme;
   char *server;
   char *token;
   
-#ifndef __ZEPHYR__
-  pthread_mutex_t *mutex;
-#endif
-
-  int queue_length;
-  struct json_object **queue; 
 } phoenix_http_t;
 
 
@@ -39,19 +34,33 @@ typedef struct {
   ASN1_TIME *certificate_not_after;
 
   phoenix_http_t *http;
+
+  _Atomic int message_id;
+
 } phoenix_t; 
+
+typedef struct {
+  int64_t id; 
+  char stream[256];
+  long long timestamp;
+  double value;
+} phoenix_sample_t;
 
 phoenix_t *phoenix_init(char *host, const char *device_id);
 phoenix_t *phoenix_init_with_server(char *host, int port, int use_tls, const char *device_id);
 phoenix_t *phoenix_init_http(unsigned char *host, const char *device_id);
-int phoenix_send(phoenix_t *phoenix, const char *topic, const char *msg, int len);
+int phoenix_connection_handle(phoenix_t *phoenix);
+int phoenix_next_message_id(phoenix_t *phoenix); 
 int phoenix_send_sample(phoenix_t *phoenix, long long timestamp, unsigned char *stream, double value);
 int phoenix_send_string(phoenix_t *phoenix, long long timestamp, unsigned char *stream, char *value);
 
+//MQTT Interface
+int phoenix_mqtt_send(phoenix_t *phoenix, int *mid, const char *topic, const char *msg, int len);
+int phoenix_mqtt_send_sample(phoenix_t *phoenix, phoenix_sample_t *sample);
 
 //HTTP interface
 int phoenix_http_send(phoenix_t *phoenix, const char *msg, int len);
-int phoenix_http_send_sample(phoenix_t *phoenix, long long timestamp, unsigned char *stream, double value);
+int phoenix_http_send_samples(phoenix_t *phoenix, phoenix_sample_t *samples, int num_samples);
 
 
 long long phoenix_get_timestamp();
@@ -88,6 +97,7 @@ typedef struct {
 
 int db_init(char *path);
 int db_close();
+int db_copy(sqlite3 *dst, sqlite3 *src);
 int db_exec(char *sql);
 char *db_string_get(char *table, char *key);
 int db_string_upsert(char *table, char *key, char *value);
@@ -101,8 +111,10 @@ int db_row_ids(char *table, int **ids);
 int db_row_write(char *table, database_column_t *column, int num_columns);
 int db_row_read(char *table, int id, database_column_t *columns, int num_columns);
 
-int db_sample_insert(struct json_object *sample);
-int db_sample_sent(struct json_object *sample, int remove);
-struct json_object *db_samples_read(int limit);
+int db_sample_insert(char *stream, long long timestamp, double value);
+int db_sample_insert_json(struct json_object *sample);
+int db_sample_set_message_id(int64_t id, int mid);
+int db_sample_sent(int64_t id, int remove);
+int db_samples_read(phoenix_sample_t *samples, int limit);
 
 #endif // __PHOENIX_H__

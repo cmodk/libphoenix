@@ -137,11 +137,6 @@ phoenix_t *phoenix_init_http(unsigned char *server, const char *device_id) {
   phoenix->server = (char *)calloc(sizeof(char),strlen(server)+1);
   sprintf(phoenix->server,"%s",server);
 
-  phoenix->http->queue = (struct json_object **)calloc(sizeof(struct json_object *), HTTP_QUEUE_MAX);
-
-  phoenix->http->mutex = calloc(sizeof(pthread_mutex_t),1);
-  pthread_mutex_init(phoenix->http->mutex,NULL);
-
   if(phoenix_provision_device(phoenix)){
     print_fatal("Provisioning failed\n");
   }
@@ -249,69 +244,46 @@ struct json_object *copy_json_object(struct json_object *src) {
   return json_tokener_parse(json_str);
 }
 
-int phoenix_http_send_sample(phoenix_t *phoenix, long long timestamp, unsigned char *stream, double value){
+int phoenix_http_send_samples(phoenix_t *phoenix, phoenix_sample_t *samples, int num_samples){
   char ts[100];
   int msg_len,i;
   int status=0;
   char *json_str;
-  struct json_object *notification, *parameters, *old_samples;  
-  struct json_object *sample = json_object_new_object();
+  struct json_object *notification, *parameters;  
+  struct json_object *sample;
   
   //Get compatible timestamp in string format
-  getRFC3339(timestamp,ts);
 
-  json_object_object_add(sample, "code", json_object_new_string(stream));
-  json_object_object_add(sample, "timestamp", json_object_new_string(ts));
-  json_object_object_add(sample, "value", json_object_new_double(value));
-
-  pthread_mutex_lock(phoenix->http->mutex);
-
-  //Check if queue is full
-  if(phoenix->http->queue_length >= HTTP_QUEUE_MAX) {
-    debug_printf("Queue full, saving in database\n");
-    db_sample_insert(sample);
-  }else{
-    phoenix->http->queue[phoenix->http->queue_length++]=json_object_get(sample);
+  
+  notification = phoenix_notification_init("streams");
+  if(!json_object_object_get_ex(notification,"parameters", &parameters)) {
+    print_error("Missing parameters for notification\n");
   }
-  json_object_put(sample);
 
-  if(phoenix->http->queue_length > (HTTP_QUEUE_MAX / 2)) {
-    notification = phoenix_notification_init("streams");
-    if(!json_object_object_get_ex(notification,"parameters", &parameters)) {
-      print_error("Missing parameters for notification\n");
-    }
+  for(i=0;i<num_samples;i++) {
+    sample = json_object_new_object();
+  
+    getRFC3339(samples[i].timestamp,ts);
 
-    debug_printf("q: 0x%08x\n", phoenix->http->queue);
-    debug_printf("o: 0x%08x\n", parameters);
-    for(i=0;i<phoenix->http->queue_length;i++) {
-      debug_printf("queue[%03d] = 0x%08x\n", i, phoenix->http->queue[i]);
-      json_object_array_add(parameters,json_object_get(phoenix->http->queue[i]));
-    }
-
-    json_str = json_object_to_json_string_ext(notification,JSON_C_TO_STRING_PLAIN);
-
-    if(!phoenix_http_send(phoenix,json_str,strlen(json_str))){
-      //Delivery successfull. Clear the queue
-      for(i=0;i<phoenix->http->queue_length;i++) {
-        //Entries from database, has an id, which need to be marked as sent
-        db_sample_sent(phoenix->http->queue[i],1);
-        json_object_put(phoenix->http->queue[i]);
-        phoenix->http->queue[i]=NULL;
-      }
-      phoenix->http->queue_length=0;
+    json_object_object_add(sample, "code", json_object_new_string(samples[i].stream));
+    json_object_object_add(sample, "timestamp", json_object_new_string(ts));
+    json_object_object_add(sample, "value", json_object_new_double(samples[i].value));
 
 
-      //Check for old samples
-      old_samples=db_samples_read(HTTP_QUEUE_MAX/2);
-      for(i=0;i<json_object_array_length(old_samples);i++){
-        phoenix->http->queue[phoenix->http->queue_length++]=copy_json_object(json_object_array_get_idx(old_samples,i));
-      }
-      json_object_put(old_samples);
-    }
-    json_object_put(notification);
-
+    json_object_array_add(parameters,sample);
   }
-  pthread_mutex_unlock(phoenix->http->mutex);
+
+  json_str = json_object_to_json_string_ext(notification,JSON_C_TO_STRING_PLAIN);
+
+  if(!phoenix_http_send(phoenix,json_str,strlen(json_str))){
+    //Delivery successfull. Clear the queue
+    for(i=0;i<num_samples;i++) {
+      //Entries from database, has an id, which need to be marked as sent
+      db_sample_sent(samples[i].id,1);
+    }
+  }
+  json_object_put(notification);
+
 
 
   return status;

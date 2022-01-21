@@ -64,7 +64,12 @@ void mosq_connect_callback(struct mosquitto *mosq, void *userdata, int reason) {
 } 
 
 void mosq_publish_callback(struct mosquitto *mosq, void *userdata, int mid) {
-  //phoenix_t *phoenix = (phoenix_t *)userdata;
+  phoenix_t *phoenix = (phoenix_t *)userdata;
+  if(mid > 0){
+    printf("MID: %d\n",mid);
+    db_sample_sent(mid,0);
+    
+  }
 }
 
 char *database_type_to_string(database_type_t type) {
@@ -184,7 +189,7 @@ void parse_command(phoenix_t *phoenix, const struct mosquitto_message *msg) {
   if(response != NULL) {
     sprintf(response_topic, "/device/%s/command/%llu", phoenix->device_id, id);
     print_info("Sending response to %s, %d bytes\n", response_topic,response->payloadlen);
-    phoenix_send(phoenix,response_topic, response->payload, response->payloadlen);
+    phoenix_mqtt_send(phoenix,NULL,response_topic, response->payload, response->payloadlen);
     free(response);
   }
     
@@ -278,7 +283,7 @@ phoenix_t *phoenix_init_with_server(char *host, int port, int use_tls, const cha
   print_info("Connecting to server: %s:%d\n",host,port);
   if( (ret=mosquitto_connect(phoenix->mosq, host, port, keepalive)) != MOSQ_ERR_SUCCESS){
     perror("Unable to connect");
-    print_fatal("Unable to connect: %d\n",ret);
+    print_error("Unable to connect: %d\n",ret);
   }
   print_info("Connected\n");
   int loop = mosquitto_loop_start(phoenix->mosq);
@@ -293,20 +298,20 @@ phoenix_t *phoenix_init_with_server(char *host, int port, int use_tls, const cha
   sprintf(phoenix->device_id,"%s",device_id);
 
   print_info("Sending online state\n");
-  phoenix_send(phoenix,phoenix->status_topic,online_status,strlen(online_status));
+  phoenix_mqtt_send(phoenix,NULL,phoenix->status_topic,online_status,strlen(online_status));
 
   print_info("Connection ready\n");
   return phoenix;
 }
 
-int phoenix_send(phoenix_t *phoenix, const char *topic, const char *msg, int len) {
+int phoenix_mqtt_send(phoenix_t *phoenix, int *mid, const char *topic, const char *msg, int len) {
   int status;
 
   if(phoenix->http) {
     return phoenix_http_send(phoenix,msg,len);
   }
   
-  status=mosquitto_publish(phoenix->mosq, NULL,topic,len,msg,1,0);
+  status=mosquitto_publish(phoenix->mosq, mid,topic,len,msg,1,2);
   if(status != 0) {
     print_info("Publish status: %d\n",status);
   }
@@ -314,30 +319,20 @@ int phoenix_send(phoenix_t *phoenix, const char *topic, const char *msg, int len
   return status;
 }
 
-void dump_variable(char *desc, void *val, int len) {
-  int i;
-  uint8_t *buffer = (uint8_t *)val;
-  if(!debug) {
-    return;
-  }
-
-  debug_printf("Variable: %s(%d) -> ",desc,len);
-  for(i=0;i<len;i++){
-    printf("%d ", buffer[i]);
-  }
-  printf("\n");
+int phoenix_send_sample(phoenix_t *phoenix, long long timestamp, unsigned char *stream, double value) {
+  return db_sample_insert(stream,timestamp,value);
 }
 
-
-int phoenix_send_sample(phoenix_t *phoenix, long long timestamp, unsigned char *stream, double value) {
+int phoenix_mqtt_send_sample(phoenix_t *phoenix, phoenix_sample_t *sample) {
   char topic[1024];
   char msg[2048];
   int index=0;
   int i;
-
-  if(phoenix->http){
-    return phoenix_http_send_sample(phoenix,timestamp,stream,value);
-  }
+  int status=0;
+  int mid=phoenix_next_message_id(phoenix);
+  char *stream=sample->stream;
+  long long timestamp=sample->timestamp;
+  double value=sample->value;
 
   memset(msg,0,sizeof(unsigned char) * 2048);
   debug_printf("Sending: %s -> %lld -> %f\n",stream,timestamp,value);
@@ -348,9 +343,6 @@ int phoenix_send_sample(phoenix_t *phoenix, long long timestamp, unsigned char *
     timestamp = phoenix_get_timestamp();
   }
 
-  if(debug) {
-    dump_variable("timestamp",&timestamp,sizeof(timestamp));
-  }
   memcpy(&(msg[index]),&timestamp,sizeof(timestamp));
   index+=sizeof(timestamp);
   
@@ -367,8 +359,11 @@ int phoenix_send_sample(phoenix_t *phoenix, long long timestamp, unsigned char *
     printf("\n");
   }
 
-  return phoenix_send(phoenix,topic,msg,index);
-}  
+  //Save the message id for the sample
+  db_sample_set_message_id(sample->id, mid);
+
+  return phoenix_mqtt_send(phoenix,&mid,topic,msg,index);
+}
 
 int phoenix_send_string(phoenix_t *phoenix, long long timestamp, unsigned char *stream, char *value) {
   char topic[1024];
@@ -390,7 +385,7 @@ int phoenix_send_string(phoenix_t *phoenix, long long timestamp, unsigned char *
       ts,stream,value);
 
     printf("%s -> %s\n",topic,msg);
-  return phoenix_send(phoenix,topic,msg,strlen(msg));
+  return phoenix_mqtt_send(phoenix,NULL, topic,msg,strlen(msg));
 }
 
 //Return unix time in milli seconds

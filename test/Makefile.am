@@ -9,7 +9,7 @@ reference_device_SOURCES=\
 reference_device_LDADD=../src/.libs/libphoenix.a -lmosquitto -lssl -lcrypto -lsqlite3 -lcurl -lm
 test_database_SOURCES=\
 		      test_database.c
-test_database_LDADD=../src/.libs/libphoenix.a -lsqlite3 -lcurl -lm
+test_database_LDADD=../src/.libs/libphoenix.a -lsqlite3 -lcurl -lm -lmosquitto
 
 generate_key_SOURCES=\
 		     generate_key.c

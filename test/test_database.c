@@ -83,12 +83,15 @@ void test_modbus_table_write(void) {
 int main(int argc, char *argv[]){
   char wanted[512];
   char *value;
-  int ret,i;
+  int ret,i,num_samples;
+  phoenix_sample_t *samples=calloc(sizeof(phoenix_sample_t),10);
 
   ret=db_init("./test");
   if(ret) {
     print_fatal("Could not init database\n");
   }
+
+  
 
   test_modbus_table_write();
   test_modbus_table_read();
@@ -103,6 +106,8 @@ int main(int argc, char *argv[]){
     value=db_string_get("conf_str","test_string");
     print_info("Get test_string: %s\n", value);
     free(value);
+
+    db_sample_insert("test_sample", -1, i*1.0f);
   }
 
   //Should be NULL, when reading unknown string
@@ -110,8 +115,14 @@ int main(int argc, char *argv[]){
   print_info("Value unknown: 0x%08x\n", value);
   
 
-  db_samples_read(10);
+  print_info("Reading samples from database\n");
+  num_samples=db_samples_read(samples, 10);
+  for(i=0;i<num_samples;i++){
+    print_info("Sample: %s -> %lld -> %f\n", samples[i].stream,samples[i].timestamp, samples[i].value);
+  }
 
+  free(samples);
+  
   db_close();
 
 } 
