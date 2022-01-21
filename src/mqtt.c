@@ -66,9 +66,8 @@ void mosq_connect_callback(struct mosquitto *mosq, void *userdata, int reason) {
 void mosq_publish_callback(struct mosquitto *mosq, void *userdata, int mid) {
   phoenix_t *phoenix = (phoenix_t *)userdata;
   if(mid > 0){
-    printf("MID: %d\n",mid);
+    debug_printf("MID: %d\n",mid);
     db_sample_sent(mid,0);
-    
   }
 }
 

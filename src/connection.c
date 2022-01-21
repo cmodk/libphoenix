@@ -23,7 +23,6 @@ int phoenix_connection_handle(phoenix_t *phoenix) {
   }else{
     for(i=0;i<num_samples;i++) {
       sample=&(samples[i]);
-      print_info("Sending sample: %s -> %lld -> %f\n", sample->stream, sample->timestamp, sample->value);
       phoenix_mqtt_send_sample(phoenix,sample);
 
     }

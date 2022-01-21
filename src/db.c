@@ -647,7 +647,6 @@ int db_sample_set_message_id(int64_t id, int mid){
   pthread_mutex_lock(&db_mutex);
   sqlite3_reset(stmt);
 
-  print_info("Setting mid: %d for %d\n", mid, id);
   if((err=sqlite3_bind_int64(stmt, 1, mid)) != SQLITE_OK) {
     print_error("Error binding id: %d\n", err);
     goto cleanup;
