@@ -179,6 +179,8 @@ int phoenix_http_post(phoenix_t *phoenix, const char *msg) {
 
   sprintf(auth_header,"Authorization: Bearer %s", phoenix->certificate_hash);
   list = curl_slist_append(list, auth_header);
+  list = curl_slist_append(list, "Content-Type: application/json");
+  list = curl_slist_append(list, "Expect:");
 
 
   sprintf(url,"%s://%s/device/%s/notification",phoenix->http->scheme,phoenix->server,phoenix->device_id);
