@@ -10,7 +10,7 @@
 #endif
 
 #define HTTP_QUEUE_MAX 100
-#define MAX_SAMPLES_TO_SEND 1
+#define MAX_SAMPLES_TO_SEND 1000
 #define MIN_MESSAGES_IN_FLIGHT 20
 
 typedef struct {
