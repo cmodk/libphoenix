@@ -7,7 +7,7 @@
 #include "../src/phoenix.h"
 
 int do_run=1;
-int debug=0;
+int debug=1;
 
 void signal_handler(int signo) {
   print_info("Caught signal\n");
@@ -22,9 +22,9 @@ int main(void) {
   long long timestamp=phoenix_get_timestamp();
   long long next_run=timestamp-(timestamp%runtime_ms);
   time_t unix_time;
-  phoenix_t *phoenix = phoenix_init_with_server("127.0.0.1",1883, 0, "reference_device");
+  //phoenix_t *phoenix = phoenix_init_with_server("127.0.0.1",1883, 0, "reference_device");
   //phoenix_t *phoenix = phoenix_init_with_server("192.168.100.104",8883, 1, "CG-KW4AK71004");
-  //phoenix_t *phoenix = phoenix_init_with_server("hive.ae101.net",8883, 1, "reference_device");
+  phoenix_t *phoenix = phoenix_init_with_server("hive.ae101.net",8883, 1, "reference_device");
   //phoenix_t *phoenix = phoenix_init_http("hive.ae101.net","reference_device");
   //phoenix_t *phoenix = phoenix_init_http("127.0.0.1:4010","reference_device");
   //phoenix_t *phoenix = phoenix_init_with_server("192.168.1.56",8883, 1, "reference_device");
@@ -45,7 +45,6 @@ int main(void) {
 
 
 
-  next_run=0;
   if (next_run == 0 ) {
     print_info("Looks like this is a new reference device, start over\n");
     timestamp = phoenix_get_timestamp();
@@ -74,7 +73,9 @@ int main(void) {
 
       next_run+=runtime_ms;
       db_int64_set("conf_double", "next_run",next_run);
-      phoenix_connection_handle(phoenix);
+      if(i%10==0) {
+        phoenix_connection_handle(phoenix);
+      }
       i++;
     }else {
       do_run=1;
@@ -84,6 +85,7 @@ int main(void) {
 
   print_info("i: %d\n",i);
 
+  phoenix_close(phoenix);
   db_close();
 
 }

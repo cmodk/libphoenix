@@ -15,16 +15,18 @@ int phoenix_connection_handle(phoenix_t *phoenix) {
     }
   }
 
-  num_samples=db_samples_read(samples, MAX_SAMPLES_TO_SEND);
+  if(phoenix->messages_in_flight<MIN_MESSAGES_IN_FLIGHT) {
+    num_samples=db_samples_read(samples, MAX_SAMPLES_TO_SEND);
 
-  if(phoenix->http) {
-    status = phoenix_http_send_samples(phoenix,samples,num_samples);
-    goto cleanup;
-  }else{
-    for(i=0;i<num_samples;i++) {
-      sample=&(samples[i]);
-      phoenix_mqtt_send_sample(phoenix,sample);
-
+    if(phoenix->http) {
+      status = phoenix_http_send_samples(phoenix,samples,num_samples);
+      goto cleanup;
+    }else{
+      debug_printf("Messages in flight: %d\n", phoenix->messages_in_flight);
+      for(i=0;i<num_samples;i++) {
+        sample=&(samples[i]);
+        phoenix_mqtt_send_sample(phoenix,sample);
+      }
     }
   }
 
@@ -34,7 +36,4 @@ cleanup:
   return status;
 }
 
-int phoenix_next_message_id(phoenix_t *phoenix) {
-  return phoenix->message_id++;  
-}
 

@@ -7,8 +7,9 @@
 
 #define SAMPLES_INSERT_STMT "INSERT INTO samples VALUES(NULL,?,?,?,0,NULL);"
 #define SAMPLES_READ_STMT "SELECT id,code,timestamp,value FROM samples WHERE is_sent=? AND message_id IS NULL LIMIT ?;"
-#define SAMPLES_IS_SENT_STMT "UPDATE samples SET is_sent=1 WHERE message_id = ?;"
+#define SAMPLES_IS_SENT_STMT "UPDATE samples SET is_sent=1 WHERE id = ?;"
 #define SAMPLES_DELETE_STMT "DELETE FROM samples WHERE message_id = ?;"
+#define SAMPLES_MESSAGE_ID_IS_SENT_STMT "UPDATE samples SET is_sent=1 WHERE message_id = ?;"
 #define SAMPLES_MESSAGE_ID_SET_STMT "UPDATE samples SET message_id=? WHERE id = ?;"
 
 
@@ -20,6 +21,7 @@ static sqlite3_stmt *db_samples_read_stmt;
 static sqlite3_stmt *db_sample_is_sent_stmt;
 static sqlite3_stmt *db_sample_delete_stmt;
 static sqlite3_stmt *db_sample_message_id_set_stmt;
+static sqlite3_stmt *db_sample_message_id_is_sent_stmt;
 
 static const char* const database_structure[] = {
   "CREATE TABLE IF NOT EXISTS conf_str(id INTEGER PRIMARY KEY AUTOINCREMENT, key STRING NOT NULL UNIQUE, value STRING);",
@@ -146,6 +148,13 @@ int db_init(char *path) {
     print_error("Error preparing message id statement: %s\n", sqlite3_errmsg(db));
     return -1;
   }
+
+  if(sqlite3_prepare(db,SAMPLES_MESSAGE_ID_IS_SENT_STMT,strlen(SAMPLES_MESSAGE_ID_IS_SENT_STMT), &db_sample_message_id_is_sent_stmt, NULL)!=SQLITE_OK) {
+    print_error("Error preparing message id statement: %s\n", sqlite3_errmsg(db));
+    return -1;
+  }
+
+
 
 
   //Clear all message ids
@@ -638,6 +647,17 @@ cleanup:
   pthread_mutex_unlock(&db_mutex);
   return status;
 }
+
+int db_sample_sent_by_message_id(int mid, int remove) {
+  int status=0;
+  int err;
+  char query[1024];
+
+  sprintf(query,"UPDATE samples SET is_sent=1 WHERE message_id=%d;", mid);
+  return sqlite3_exec(db,query,NULL,0,NULL);
+}
+
+
 
 int db_sample_set_message_id(int64_t id, int mid){
   int status=0;

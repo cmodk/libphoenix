@@ -66,8 +66,9 @@ void mosq_connect_callback(struct mosquitto *mosq, void *userdata, int reason) {
 void mosq_publish_callback(struct mosquitto *mosq, void *userdata, int mid) {
   phoenix_t *phoenix = (phoenix_t *)userdata;
   if(mid > 0){
-    debug_printf("MID: %d\n",mid);
-    db_sample_sent(mid,0);
+    debug_printf("MID received by server: %d\n",mid);
+    db_sample_sent_by_message_id(mid,0);
+    phoenix->messages_in_flight--;
   }
 }
 
@@ -303,6 +304,10 @@ phoenix_t *phoenix_init_with_server(char *host, int port, int use_tls, const cha
   return phoenix;
 }
 
+void phoenix_close(phoenix_t *phoenix) {
+  mosquitto_destroy(phoenix->mosq);
+}
+
 int phoenix_mqtt_send(phoenix_t *phoenix, int *mid, const char *topic, const char *msg, int len) {
   int status;
 
@@ -314,6 +319,7 @@ int phoenix_mqtt_send(phoenix_t *phoenix, int *mid, const char *topic, const cha
   if(status != 0) {
     print_info("Publish status: %d\n",status);
   }
+  phoenix->messages_in_flight++;
 
   return status;
 }
@@ -328,7 +334,7 @@ int phoenix_mqtt_send_sample(phoenix_t *phoenix, phoenix_sample_t *sample) {
   int index=0;
   int i;
   int status=0;
-  int mid=phoenix_next_message_id(phoenix);
+  int mid;
   char *stream=sample->stream;
   long long timestamp=sample->timestamp;
   double value=sample->value;
@@ -359,9 +365,14 @@ int phoenix_mqtt_send_sample(phoenix_t *phoenix, phoenix_sample_t *sample) {
   }
 
   //Save the message id for the sample
-  db_sample_set_message_id(sample->id, mid);
 
-  return phoenix_mqtt_send(phoenix,&mid,topic,msg,index);
+  if(phoenix_mqtt_send(phoenix,&mid,topic,msg,index)) {
+    print_error("Could not publish sample\n");
+  }
+  
+  debug_printf("Sample %d has mid %d\n", sample->id, mid);
+  return db_sample_set_message_id(sample->id, mid);
+  
 }
 
 int phoenix_send_string(phoenix_t *phoenix, long long timestamp, unsigned char *stream, char *value) {

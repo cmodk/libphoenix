@@ -10,7 +10,8 @@
 #endif
 
 #define HTTP_QUEUE_MAX 100
-#define MAX_SAMPLES_TO_SEND 10
+#define MAX_SAMPLES_TO_SEND 1
+#define MIN_MESSAGES_IN_FLIGHT 20
 
 typedef struct {
   char *scheme;
@@ -35,7 +36,7 @@ typedef struct {
 
   phoenix_http_t *http;
 
-  _Atomic int message_id;
+  _Atomic int messages_in_flight;
 
 } phoenix_t; 
 
@@ -49,8 +50,8 @@ typedef struct {
 phoenix_t *phoenix_init(char *host, const char *device_id);
 phoenix_t *phoenix_init_with_server(char *host, int port, int use_tls, const char *device_id);
 phoenix_t *phoenix_init_http(unsigned char *host, const char *device_id);
+void phoenix_close(phoenix_t *phoenix);
 int phoenix_connection_handle(phoenix_t *phoenix);
-int phoenix_next_message_id(phoenix_t *phoenix); 
 int phoenix_send_sample(phoenix_t *phoenix, long long timestamp, unsigned char *stream, double value);
 int phoenix_send_string(phoenix_t *phoenix, long long timestamp, unsigned char *stream, char *value);
 
@@ -115,6 +116,7 @@ int db_sample_insert(char *stream, long long timestamp, double value);
 int db_sample_insert_json(struct json_object *sample);
 int db_sample_set_message_id(int64_t id, int mid);
 int db_sample_sent(int64_t id, int remove);
+int db_sample_sent_by_message_id(int mid, int remove);
 int db_samples_read(phoenix_sample_t *samples, int limit);
 
 #endif // __PHOENIX_H__
