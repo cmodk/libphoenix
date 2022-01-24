@@ -6,14 +6,14 @@
 #include <phoenix.h>
 
 #define SAMPLES_INSERT_STMT "INSERT INTO samples VALUES(NULL,?,?,?,0,NULL);"
-#define SAMPLES_READ_STMT "SELECT id,code,timestamp,value FROM samples WHERE is_sent=? AND message_id IS NULL LIMIT ?;"
+#define SAMPLES_READ_STMT "SELECT id,code,timestamp,value FROM samples WHERE is_sent=? AND message_id IS NULL ORDER BY timestamp DESC LIMIT ?;"
 #define SAMPLES_IS_SENT_STMT "UPDATE samples SET is_sent=1 WHERE id = ?;"
 #define SAMPLES_DELETE_STMT "DELETE FROM samples WHERE message_id = ?;"
 #define SAMPLES_MESSAGE_ID_IS_SENT_STMT "UPDATE samples SET is_sent=1 WHERE message_id = ?;"
 #define SAMPLES_MESSAGE_ID_SET_STMT "UPDATE samples SET message_id=? WHERE id = ?;"
 
 
-static sqlite3 *db;
+static sqlite3 *db=NULL;
 static char workpath[PATH_MAX-1];
 static pthread_mutex_t db_mutex;
 static sqlite3_stmt *db_sample_insert_stmt;
@@ -168,6 +168,11 @@ int db_init(char *path) {
   pthread_mutex_init(&db_mutex,NULL);
 
   return 0;
+}
+
+int db_ready() {
+  debug_printf("db_ready: %p\n", db);
+  return db!=NULL;
 }
 
 int db_close() {
@@ -725,4 +730,8 @@ int db_samples_read(phoenix_sample_t *samples, int limit) {
 cleanup:
   pthread_mutex_unlock(&db_mutex);
   return num_samples;
+}
+
+int db_samples_delete_sent(void) {
+  return sqlite3_exec(db,"DELETE FROM samples WHERE is_sent=1;",NULL,0,NULL);
 }

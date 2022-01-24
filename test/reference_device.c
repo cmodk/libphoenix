@@ -15,7 +15,7 @@ void signal_handler(int signo) {
 }
 
 int main(void) {
-  int i=0;
+  int i=0,ret;
   char json_msg[1024];
   double x,ref_value;
   long long runtime_ms=1000;
@@ -73,8 +73,10 @@ int main(void) {
 
       next_run+=runtime_ms;
       db_int64_set("conf_double", "next_run",next_run);
-      if(i%10==0) {
-        phoenix_connection_handle(phoenix);
+      if(i%120 == 0) {
+        if(ret=db_samples_delete_sent()) {
+          print_error("Could not delete sent samples: %d\n", ret);
+        }
       }
       i++;
     }else {

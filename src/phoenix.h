@@ -10,7 +10,7 @@
 #endif
 
 #define HTTP_QUEUE_MAX 100
-#define MAX_SAMPLES_TO_SEND 1000
+#define MAX_SAMPLES_TO_SEND 100
 #define MIN_MESSAGES_IN_FLIGHT 20
 
 typedef struct {
@@ -37,6 +37,7 @@ typedef struct {
   phoenix_http_t *http;
 
   _Atomic int messages_in_flight;
+  pthread_t connection_thread;
 
 } phoenix_t; 
 
@@ -97,6 +98,7 @@ typedef struct {
 } database_column_t;
 
 int db_init(char *path);
+int db_ready();
 int db_close();
 int db_copy(sqlite3 *dst, sqlite3 *src);
 int db_exec(char *sql);
@@ -118,5 +120,6 @@ int db_sample_set_message_id(int64_t id, int mid);
 int db_sample_sent(int64_t id, int remove);
 int db_sample_sent_by_message_id(int mid, int remove);
 int db_samples_read(phoenix_sample_t *samples, int limit);
+int db_samples_delete_sent();
 
 #endif // __PHOENIX_H__

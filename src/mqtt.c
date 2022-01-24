@@ -205,6 +205,26 @@ void mosq_message_callback(struct mosquitto *mosq, void *userdata, const struct 
   }
 }
 
+static void *connection_handler(void *input) {
+  phoenix_t *phoenix = (phoenix_t *)input;
+
+  //Wait for database
+  while(!db_ready()){
+    print_info("Waiting for database\n");
+    sleep(1);
+  }
+
+
+  while(phoenix->mosq) {
+    phoenix_connection_handle(phoenix);
+
+    sleep(1);
+  }
+
+  print_info("Connection thread ended\n");
+}
+
+
 phoenix_t *phoenix_init_with_server(char *host, int port, int use_tls, const char *device_id) {
   int ret;
   int keepalive = 60;
@@ -300,12 +320,18 @@ phoenix_t *phoenix_init_with_server(char *host, int port, int use_tls, const cha
   print_info("Sending online state\n");
   phoenix_mqtt_send(phoenix,NULL,phoenix->status_topic,online_status,strlen(online_status));
 
+
+  pthread_create(&(phoenix->connection_thread), NULL, connection_handler, phoenix);
+
   print_info("Connection ready\n");
   return phoenix;
 }
 
 void phoenix_close(phoenix_t *phoenix) {
   mosquitto_destroy(phoenix->mosq);
+
+  phoenix->mosq=NULL;
+  pthread_join(phoenix->connection_thread,NULL);
 }
 
 int phoenix_mqtt_send(phoenix_t *phoenix, int *mid, const char *topic, const char *msg, int len) {
