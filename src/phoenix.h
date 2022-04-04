@@ -36,7 +36,9 @@ typedef struct {
 
   phoenix_http_t *http;
 
-  _Atomic int messages_in_flight;
+  int messages_in_flight;
+
+  pthread_mutex_t connection_mutex;
   pthread_t connection_thread;
 
 } phoenix_t; 

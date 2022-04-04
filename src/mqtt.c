@@ -66,9 +66,12 @@ void mosq_connect_callback(struct mosquitto *mosq, void *userdata, int reason) {
 void mosq_publish_callback(struct mosquitto *mosq, void *userdata, int mid) {
   phoenix_t *phoenix = (phoenix_t *)userdata;
   if(mid > 0){
+    
+    pthread_mutex_lock(&(phoenix->connection_mutex));
     debug_printf("MID received by server: %d\n",mid);
     db_sample_sent_by_message_id(mid,0);
     phoenix->messages_in_flight--;
+    pthread_mutex_unlock(&(phoenix->connection_mutex));
   }
 }
 
@@ -321,6 +324,7 @@ phoenix_t *phoenix_init_with_server(char *host, int port, int use_tls, const cha
   phoenix_mqtt_send(phoenix,NULL,phoenix->status_topic,online_status,strlen(online_status));
 
 
+  pthread_mutex_init(&(phoenix->connection_mutex),NULL);
   pthread_create(&(phoenix->connection_thread), NULL, connection_handler, phoenix);
 
   print_info("Connection ready\n");
@@ -341,11 +345,13 @@ int phoenix_mqtt_send(phoenix_t *phoenix, int *mid, const char *topic, const cha
     return phoenix_http_send(phoenix,msg,len);
   }
   
+  pthread_mutex_lock(&(phoenix->connection_mutex));
   status=mosquitto_publish(phoenix->mosq, mid,topic,len,msg,1,2);
   if(status != 0) {
     print_info("Publish status: %d\n",status);
   }
   phoenix->messages_in_flight++;
+  pthread_mutex_unlock(&(phoenix->connection_mutex));
 
   return status;
 }
