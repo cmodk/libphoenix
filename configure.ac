@@ -16,7 +16,7 @@ AM_CONDITIONAL([CLOUDGATE], [test x$cloudgate = xfalse])
 # Checks for library functions.
 common_CFLAGS="\
 	-I../src \
-	-Wall -g -Werror=implicit-function-declaration -Werror=pointer-to-int-cast -Werror=int-to-pointer-cast -Werror=int-conversion\
+	-Wall -g -Werror=implicit-function-declaration -Werror=pointer-to-int-cast -Werror=int-to-pointer-cast \
         -Wl,--start-group"
 AC_SUBST([common_CFLAGS])
 
