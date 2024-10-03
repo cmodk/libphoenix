@@ -20,7 +20,7 @@ common_CFLAGS="\
         -Wl,--start-group"
 AC_SUBST([common_CFLAGS])
 
-common_LDFLAGS="-lm -lcurl -lz -ljson-c -lssl -lcrypto"
+common_LDFLAGS="-lm -lcurl -lz -ljson-c -lssl -lcrypto -lpthread" 
 AC_SUBST([common_LDFLAGS])
 
 

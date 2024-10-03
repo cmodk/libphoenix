@@ -17,4 +17,4 @@ libphoenix_la_SOURCES=\
 		provisioning.c \
 		db.c \
 		db_commands.c
-libphoenix_la_LDFLAGS=-lsqlite3
+libphoenix_la_LDFLAGS=-lsqlite3 -lpthread
