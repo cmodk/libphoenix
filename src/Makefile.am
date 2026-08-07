@@ -8,7 +8,7 @@ if CLOUDGATE
 AM_CFLAGS+=-DCLOUDGATE
 endif
 
-nobase_include_HEADERS=phoenix.h debug.h
+nobase_include_HEADERS=phoenix.h phoenix_debug.h
 
 libphoenix_la_SOURCES=\
 		connection.c \
