@@ -1,4 +1,4 @@
-#include <phoenix.h>
+#include "../src/phoenix.h"
 int debug=1;
 
 int main(void) {
