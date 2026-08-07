@@ -6,7 +6,7 @@
 #include <sqlite3.h>
 #include <json-c/json.h>
 #include <openssl/pem.h>
-#include <debug.h>
+#include "phoenix_debug.h"
 #endif
 
 #define HTTP_QUEUE_MAX 100

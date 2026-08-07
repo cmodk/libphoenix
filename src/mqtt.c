@@ -9,7 +9,7 @@
 #include <openssl/err.h>
 #include <sys/time.h>
 
-#include <debug.h>
+#include "phoenix_debug.h"
 #include <db_commands.h>
 
 #define INSECURE_TLS 0
